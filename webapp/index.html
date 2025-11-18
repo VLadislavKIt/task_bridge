@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TaskBridge</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--tg-theme-bg-color, #f0f2f5);
+            color: var(--tg-theme-text-color, #333);
+            padding: 16px;
+        }
+
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 16px;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-card h3 {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .stat-card .value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .tasks {
+            display: grid;
+            gap: 12px;
+        }
+
+        .task-card {
+            background: white;
+            padding: 16px;
+            border-radius: 12px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .task-card:active {
+            transform: scale(0.98);
+        }
+
+        .task-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .task-title {
+            font-size: 16px;
+            font-weight: bold;
+            flex: 1;
+        }
+
+        .task-status {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        .status-pending { background: #fef3c7; color: #d97706; }
+        .status-in_progress { background: #dbeafe; color: #2563eb; }
+        .status-completed { background: #d1fae5; color: #059669; }
+
+        .task-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            font-size: 12px;
+            color: #999;
+        }
+
+        .back-button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-bottom: 16px;
+            width: 100%;
+        }
+
+        .detail-section {
+            background: white;
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 12px;
+        }
+
+        .detail-section h2 {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .file-item {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+
+        .file-item-name {
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+
+        .file-item-meta {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .comment-item {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+
+        .comment-author {
+            font-weight: bold;
+            margin-bottom: 4px;
+            color: #667eea;
+        }
+
+        .comment-text {
+            margin-bottom: 4px;
+        }
+
+        .comment-date {
+            font-size: 11px;
+            color: #999;
+        }
+
+        .comment-form {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .comment-input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .comment-submit {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Список задач -->
+        <div id="tasks-view">
+            <div class="header">
+                <h1 id="header-title">📋 Мои задачи</h1>
+                <p id="header-subtitle">Управление задачами</p>
+            </div>
+
+            <div class="stats" id="stats">
+                <div class="stat-card">
+                    <h3>В работе</h3>
+                    <div class="value" id="in-progress-tasks">-</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Завершено</h3>
+                    <div class="value" id="completed-tasks">-</div>
+                </div>
+            </div>
+
+            <div class="tasks" id="tasks-container">
+                <div class="loading">Загрузка...</div>
+            </div>
+        </div>
+
+        <!-- Детали задачи -->
+        <div id="task-detail-view" class="hidden">
+            <button class="back-button" onclick="showTaskList()">← Назад к списку</button>
+
+            <div class="detail-section" id="task-info">
+                <div class="loading">Загрузка...</div>
+            </div>
+
+            <div class="detail-section">
+                <h2>📎 Файлы (<span id="files-count">0</span>)</h2>
+                <div id="files-container">
+                    <div class="empty-state">Нет файлов</div>
+                </div>
+            </div>
+
+            <div class="detail-section">
+                <h2>💬 Комментарии (<span id="comments-count">0</span>)</h2>
+                <div id="comments-container">
+                    <div class="empty-state">Нет комментариев</div>
+                </div>
+                <div class="comment-form">
+                    <input type="text" id="comment-input" class="comment-input" placeholder="Добавить комментарий...">
+                    <button class="comment-submit" onclick="addComment()">Отправить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+
+        // Получение параметров из URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const mode = urlParams.get('mode') || 'manager'; // executor или manager
+        const userId = parseInt(urlParams.get('user_id') || '0');
+
+        // Текущая задача для просмотра деталей
+        let currentTask = null;
+
+        // Настройка заголовка в зависимости от режима
+        if (mode === 'executor') {
+            document.getElementById('header-title').textContent = '✅ Мои задачи';
+            document.getElementById('header-subtitle').textContent = 'Задачи, назначенные мне';
+        } else {
+            document.getElementById('header-title').textContent = '📋 Управление задачами';
+            document.getElementById('header-subtitle').textContent = 'Задачи моих исполнителей';
+        }
+
+        // Загрузка статистики
+        async function loadStats() {
+            try {
+                let url = `${API_BASE}/api/tasks?`;
+                if (mode === 'executor' && userId) {
+                    url += `assigned_to=${userId}`;
+                }
+
+                const response = await fetch(url);
+                const tasks = await response.json();
+
+                const inProgress = tasks.filter(t => t.status === 'in_progress').length;
+                const completed = tasks.filter(t => t.status === 'completed').length;
+
+                document.getElementById('in-progress-tasks').textContent = inProgress;
+                document.getElementById('completed-tasks').textContent = completed;
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        // Загрузка списка задач
+        async function loadTasks() {
+            try {
+                let url = `${API_BASE}/api/tasks?`;
+
+                if (mode === 'executor' && userId) {
+                    // Исполнитель видит только свои задачи
+                    url += `assigned_to=${userId}`;
+                }
+
+                const response = await fetch(url);
+                const tasks = await response.json();
+                renderTasks(tasks);
+            } catch (error) {
+                console.error('Error loading tasks:', error);
+                document.getElementById('tasks-container').innerHTML =
+                    '<div class="empty-state">Ошибка загрузки</div>';
+            }
+        }
+
+        // Отображение списка задач
+        function renderTasks(tasks) {
+            const container = document.getElementById('tasks-container');
+
+            if (tasks.length === 0) {
+                container.innerHTML = '<div class="empty-state">📭<br><br>Нет задач</div>';
+                return;
+            }
+
+            container.innerHTML = tasks.map(task => `
+                <div class="task-card" onclick="showTaskDetail(${task.id})">
+                    <div class="task-header">
+                        <div class="task-title">${escapeHtml(task.title)}</div>
+                        <div class="task-status status-${task.status}">${getStatusLabel(task.status)}</div>
+                    </div>
+                    <div class="task-meta">
+                        ${task.assignee && mode === 'manager' ? `<div>👤 ${escapeHtml(task.assignee.first_name || task.assignee.username)}</div>` : ''}
+                        ${task.due_date ? `<div>📅 ${new Date(task.due_date).toLocaleDateString('ru-RU')}</div>` : ''}
+                        ${task.priority ? `<div>⚡ ${task.priority}</div>` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Показать детали задачи
+        async function showTaskDetail(taskId) {
+            document.getElementById('tasks-view').classList.add('hidden');
+            document.getElementById('task-detail-view').classList.remove('hidden');
+
+            try {
+                // Загрузка деталей задачи
+                const taskResponse = await fetch(`${API_BASE}/api/tasks/${taskId}`);
+                currentTask = await taskResponse.json();
+
+                document.getElementById('task-info').innerHTML = `
+                    <div class="task-header">
+                        <div class="task-title">${escapeHtml(currentTask.title)}</div>
+                        <div class="task-status status-${currentTask.status}">${getStatusLabel(currentTask.status)}</div>
+                    </div>
+                    ${currentTask.description ? `<p style="margin: 12px 0; color: #666;">${escapeHtml(currentTask.description)}</p>` : ''}
+                    <div class="task-meta">
+                        ${currentTask.assignee ? `<div>👤 ${escapeHtml(currentTask.assignee.first_name || currentTask.assignee.username)}</div>` : ''}
+                        ${currentTask.due_date ? `<div>📅 ${new Date(currentTask.due_date).toLocaleDateString('ru-RU')}</div>` : ''}
+                        ${currentTask.priority ? `<div>⚡ ${currentTask.priority}</div>` : ''}
+                    </div>
+                `;
+
+                // Загрузка файлов
+                const filesResponse = await fetch(`${API_BASE}/api/tasks/${taskId}/files`);
+                const files = await filesResponse.json();
+                renderFiles(files);
+
+                // Загрузка комментариев
+                const commentsResponse = await fetch(`${API_BASE}/api/tasks/${taskId}/comments`);
+                const comments = await commentsResponse.json();
+                renderComments(comments);
+
+            } catch (error) {
+                console.error('Error loading task details:', error);
+            }
+        }
+
+        // Отображение файлов
+        function renderFiles(files) {
+            const container = document.getElementById('files-container');
+            document.getElementById('files-count').textContent = files.length;
+
+            if (files.length === 0) {
+                container.innerHTML = '<div class="empty-state">Нет файлов</div>';
+                return;
+            }
+
+            container.innerHTML = files.map(file => `
+                <div class="file-item">
+                    <div class="file-item-name">${getFileIcon(file.file_type)} ${escapeHtml(file.file_name || 'Файл')}</div>
+                    ${file.caption ? `<div style="margin: 4px 0;">${escapeHtml(file.caption)}</div>` : ''}
+                    <div class="file-item-meta">
+                        ${file.uploaded_by ? `Загрузил: ${escapeHtml(file.uploaded_by.first_name)} • ` : ''}
+                        ${file.file_size ? `${(file.file_size / 1024).toFixed(1)} КБ • ` : ''}
+                        ${new Date(file.created_at).toLocaleString('ru-RU')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Отображение комментариев
+        function renderComments(comments) {
+            const container = document.getElementById('comments-container');
+            document.getElementById('comments-count').textContent = comments.length;
+
+            if (comments.length === 0) {
+                container.innerHTML = '<div class="empty-state">Нет комментариев</div>';
+                return;
+            }
+
+            container.innerHTML = comments.map(comment => `
+                <div class="comment-item">
+                    <div class="comment-author">${comment.author ? escapeHtml(comment.author.first_name || comment.author.username) : 'Пользователь'}</div>
+                    <div class="comment-text">${escapeHtml(comment.text)}</div>
+                    <div class="comment-date">${new Date(comment.created_at).toLocaleString('ru-RU')}</div>
+                </div>
+            `).join('');
+        }
+
+        // Добавить комментарий
+        async function addComment() {
+            const input = document.getElementById('comment-input');
+            const text = input.value.trim();
+
+            if (!text || !currentTask || !userId) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/api/tasks/${currentTask.id}/comments`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        text: text,
+                        user_id: userId
+                    })
+                });
+
+                if (response.ok) {
+                    input.value = '';
+                    // Перезагрузить комментарии
+                    const commentsResponse = await fetch(`${API_BASE}/api/tasks/${currentTask.id}/comments`);
+                    const comments = await commentsResponse.json();
+                    renderComments(comments);
+                }
+            } catch (error) {
+                console.error('Error adding comment:', error);
+                alert('Ошибка при добавлении комментария');
+            }
+        }
+
+        // Вернуться к списку задач
+        function showTaskList() {
+            document.getElementById('tasks-view').classList.remove('hidden');
+            document.getElementById('task-detail-view').classList.add('hidden');
+            currentTask = null;
+
+            // Перезагрузить список
+            loadStats();
+            loadTasks();
+        }
+
+        // Утилиты
+        function getStatusLabel(status) {
+            const labels = {
+                'pending': 'Ожидает',
+                'in_progress': 'В работе',
+                'completed': 'Завершено',
+                'cancelled': 'Отменено'
+            };
+            return labels[status] || status;
+        }
+
+        function getFileIcon(type) {
+            return type === 'photo' ? '🖼️' : '📄';
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Инициализация
+        (async () => {
+            await loadStats();
+            await loadTasks();
+        })();
+    </script>
+</body>
+</html>

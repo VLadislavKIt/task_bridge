@@ -97,8 +97,11 @@ async def start_bot_webhook():
 
 def start_webapp():
     """Запуск веб-приложения"""
-    logger.info(f"Starting web app on {HOST}:{PORT}")
-    uvicorn.run(webapp_app, host=HOST, port=PORT)
+    import os
+    # Railway автоматически устанавливает PORT, используем его если доступен
+    port = int(os.environ.get("PORT", PORT))
+    logger.info(f"Starting web app on {HOST}:{port}")
+    uvicorn.run(webapp_app, host=HOST, port=port)
 
 
 async def main():

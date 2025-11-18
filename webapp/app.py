@@ -18,6 +18,14 @@ app = FastAPI(title="TaskBridge API")
 
 # Путь к webapp директории (где лежит этот файл app.py и index.html)
 webapp_dir = Path(__file__).parent
+index_html_path = webapp_dir / "index.html"
+
+# Проверка при запуске
+import logging
+logger = logging.getLogger(__name__)
+logger.info(f"Webapp directory: {webapp_dir}")
+logger.info(f"Index.html path: {index_html_path}")
+logger.info(f"Index.html exists: {index_html_path.exists()}")
 
 # Монтируем статические файлы (если будут добавлены CSS, JS, images)
 # app.mount("/static", StaticFiles(directory=str(webapp_dir / "static")), name="static")
@@ -25,19 +33,21 @@ webapp_dir = Path(__file__).parent
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
     """Главная страница - показываем index.html"""
-    index_path = webapp_dir / "index.html"
-    if not index_path.exists():
-        raise HTTPException(status_code=404, detail=f"index.html not found at {index_path}")
-    return FileResponse(str(index_path))
+    if not index_html_path.exists():
+        logger.error(f"index.html NOT FOUND at {index_html_path}")
+        raise HTTPException(status_code=404, detail=f"index.html not found at {index_html_path}")
+    logger.info(f"Serving index.html from {index_html_path}")
+    return FileResponse(str(index_html_path))
 
 
 @app.get("/webapp/index.html", response_class=HTMLResponse)
 async def read_webapp():
     """Отображение веб-приложения (для совместимости с WebApp кнопками)"""
-    index_path = webapp_dir / "index.html"
-    if not index_path.exists():
-        raise HTTPException(status_code=404, detail=f"index.html not found at {index_path}")
-    return FileResponse(str(index_path))
+    if not index_html_path.exists():
+        logger.error(f"index.html NOT FOUND at {index_html_path}")
+        raise HTTPException(status_code=404, detail=f"index.html not found at {index_html_path}")
+    logger.info(f"Serving index.html from {index_html_path}")
+    return FileResponse(str(index_html_path))
 
 
 @app.get("/api/tasks", response_model=List[dict])

@@ -135,20 +135,25 @@ async def get_or_create_user_by_username(db: Session, username: str) -> User:
     return user
 
 
-async def notify_assigned_user(bot: Bot, task_id: int, db: Session):
-    """Отправляет уведомление исполнителю о новой задаче"""
+async def notify_assigned_user(bot: Bot, task_id: int, db: Session) -> bool:
+    """
+    Отправляет уведомление исполнителю о новой задаче
+
+    Returns:
+        bool: True если уведомление отправлено, False если нет
+    """
     try:
         task = db.query(Task).filter(Task.id == task_id).first()
         if not task or not task.assignee:
             logger.warning(f"Task {task_id} has no assignee")
-            return
+            return False
 
         assignee = task.assignee
 
         # Проверяем, что у пользователя есть telegram_id
         if assignee.telegram_id == -1 or assignee.telegram_id is None:
             logger.warning(f"User @{assignee.username} hasn't started a chat with the bot")
-            return
+            return False
 
         # Формируем текст уведомления
         notification = (
@@ -197,11 +202,14 @@ async def notify_assigned_user(bot: Bot, task_id: int, db: Session):
         )
 
         logger.info(f"Notification sent to user @{assignee.username} (ID: {assignee.telegram_id})")
+        return True
 
     except TelegramForbiddenError:
         logger.warning(f"User blocked the bot or hasn't started it")
+        return False
     except Exception as e:
         logger.error(f"Failed to send notification: {e}", exc_info=True)
+        return False
 
 
 @router.message(Command("start"))
@@ -387,7 +395,21 @@ async def handle_confirm_task(callback: CallbackQuery):
 
         # Отправляем уведомление исполнителю
         if assigned_user_id:
-            await notify_assigned_user(callback.bot, task.id, db)
+            # Получаем информацию о задаче для сообщения в группе
+            assignee = db.query(User).filter(User.id == assigned_user_id).first()
+            notification_sent = await notify_assigned_user(callback.bot, task.id, db)
+
+            # Если уведомление не отправлено (пользователь не начал чат), сообщаем в группу
+            if not notification_sent and assignee and pending_task.assignee_username:
+                try:
+                    await callback.bot.send_message(
+                        chat_id=pending_task.chat_id,
+                        text=f"@{pending_task.assignee_username}, вам назначена задача: <b>{task.title}</b>\n\n"
+                             f"❗ Для получения уведомлений начните чат с ботом: /start @taskbridgeprotobot",
+                        parse_mode="HTML"
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to send group notification: {e}")
 
         # WebApp URL для руководителя (создателя задачи)
         creator = db.query(User).filter(User.id == pending_task.created_by_id).first()

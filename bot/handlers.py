@@ -260,9 +260,8 @@ async def cmd_help(message: Message):
     help_text = (
         "📋 <b>TaskBridge - AI-управление задачами</b>\n\n"
         "<b>Команды:</b>\n"
-        "/start - Начать работу\n"
-        "/help - Показать справку\n"
-        "/panel - Получить ссылку на панель\n\n"
+        "/start - Начать работу и открыть панель задач\n"
+        "/help - Показать справку\n\n"
         "<b>Как использовать:</b>\n"
         "1. Добавьте бота в групповой чат\n"
         "2. Пишите сообщения с задачами, например:\n"
@@ -281,16 +280,6 @@ async def cmd_help(message: Message):
     await message.answer(help_text, parse_mode="HTML")
 
 
-@router.message(Command("panel"))
-async def cmd_panel(message: Message):
-    """Обработчик команды /panel"""
-    panel_message = (
-        f"📋 <b>Панель управления задачами:</b>\n\n"
-        f"http://{HOST}:{PORT}/webapp/index.html\n\n"
-        f"Откройте ссылку в браузере для просмотра всех задач."
-    )
-
-    await message.answer(panel_message, parse_mode="HTML")
 
 
 @router.callback_query(F.data.startswith("task_start:"))

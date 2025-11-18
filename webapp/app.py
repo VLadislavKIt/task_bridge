@@ -16,21 +16,28 @@ from pathlib import Path
 app = FastAPI(title="TaskBridge API")
 
 
-static_dir = Path(__file__).parent / "static"
+# Путь к webapp директории (где лежит этот файл app.py и index.html)
 webapp_dir = Path(__file__).parent
 
-
+# Монтируем статические файлы (если будут добавлены CSS, JS, images)
+# app.mount("/static", StaticFiles(directory=str(webapp_dir / "static")), name="static")
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
-    """Главная страница - редирект на веб-приложение"""
-    return FileResponse(webapp_dir / "index.html")
+    """Главная страница - показываем index.html"""
+    index_path = webapp_dir / "index.html"
+    if not index_path.exists():
+        raise HTTPException(status_code=404, detail=f"index.html not found at {index_path}")
+    return FileResponse(str(index_path))
 
 
 @app.get("/webapp/index.html", response_class=HTMLResponse)
 async def read_webapp():
-    """Отображение веб-приложения"""
-    return FileResponse(webapp_dir / "index.html")
+    """Отображение веб-приложения (для совместимости с WebApp кнопками)"""
+    index_path = webapp_dir / "index.html"
+    if not index_path.exists():
+        raise HTTPException(status_code=404, detail=f"index.html not found at {index_path}")
+    return FileResponse(str(index_path))
 
 
 @app.get("/api/tasks", response_model=List[dict])

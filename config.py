@@ -14,11 +14,15 @@ load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise ValueError("BOT_TOKEN environment variable is required")
+# Убираем пробелы и переносы строк
+BOT_TOKEN = BOT_TOKEN.strip()
 
 # OpenAI API Key
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 if not OPENAI_API_KEY:
     raise ValueError("OPENAI_API_KEY environment variable is required")
+# ВАЖНО: Убираем пробелы и переносы строк (Railway может добавлять \n)
+OPENAI_API_KEY = OPENAI_API_KEY.strip()
 
 # ==================== БАЗА ДАННЫХ ====================
 

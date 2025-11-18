@@ -548,6 +548,10 @@ async def handle_group_message(message: Message):
 
         task_data = ai_result.get("task", {})
 
+        # ЛОГИРУЕМ ВСЕ ДАННЫЕ
+        logger.info(f"Task data from AI: {task_data}")
+        logger.info(f"Assignee username from AI: {task_data.get('assignee_username')}")
+
         # Создаем ожидающую подтверждения задачу
         pending_task = PendingTask(
             message_id=message_obj.id,
@@ -560,6 +564,8 @@ async def handle_group_message(message: Message):
             priority=task_data.get("priority", "normal"),
             status="pending"
         )
+
+        logger.info(f"Created pending task with assignee: {pending_task.assignee_username}")
 
         db.add(pending_task)
         db.commit()

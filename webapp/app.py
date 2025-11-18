@@ -50,6 +50,17 @@ async def read_webapp():
     return FileResponse(str(index_html_path))
 
 
+@app.get("//webapp/index.html", response_class=HTMLResponse)
+async def read_webapp_double_slash():
+    """Fallback для двойного слэша (если WEB_APP_DOMAIN заканчивается на /)"""
+    logger.warning("Request with double slash! Check WEB_APP_DOMAIN configuration")
+    if not index_html_path.exists():
+        logger.error(f"index.html NOT FOUND at {index_html_path}")
+        raise HTTPException(status_code=404, detail=f"index.html not found at {index_html_path}")
+    logger.info(f"Serving index.html from {index_html_path}")
+    return FileResponse(str(index_html_path))
+
+
 @app.get("/api/tasks", response_model=List[dict])
 async def get_tasks(
     status: Optional[str] = None,

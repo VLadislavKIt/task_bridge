@@ -1,23 +1,19 @@
-"""
-Управление подключением к базе данных (asyncpg + SQLAlchemy)
-"""
-
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy import create_engine
 from config import DATABASE_URL
 from db.models import Base
 
-# Преобразуем URL для асинхронного драйвера
+
 def get_async_database_url(url: str) -> str:
-    """Преобразует DATABASE_URL для использования с asyncpg"""
+    
     if url.startswith("postgresql://"):
         return url.replace("postgresql://", "postgresql+asyncpg://")
     elif url.startswith("sqlite://"):
         return url.replace("sqlite://", "sqlite+aiosqlite://")
     return url
 
-# Синхронный движок (для SQLite и инициализации БД)
+
 if "postgresql" in DATABASE_URL:
     sync_engine = create_engine(
         DATABASE_URL,
@@ -25,25 +21,25 @@ if "postgresql" in DATABASE_URL:
         pool_pre_ping=True
     )
 elif "sqlite" in DATABASE_URL:
-    # SQLite
+    
     sync_engine = create_engine(
         DATABASE_URL,
         echo=False,
-        connect_args={"check_same_thread": False}  # Для SQLite
+        connect_args={"check_same_thread": False}  
     )
 else:
-    # Default to SQLite
+    
     sync_engine = create_engine(
         "sqlite:///taskbridge.db",
         echo=False,
         connect_args={"check_same_thread": False}
     )
 
-# Асинхронный движок (для основной работы)
+
 ASYNC_DATABASE_URL = get_async_database_url(DATABASE_URL)
 
 if "postgresql" in DATABASE_URL:
-    # PostgreSQL async engine
+   
     async_engine = create_async_engine(
         ASYNC_DATABASE_URL,
         echo=False,
@@ -52,21 +48,21 @@ if "postgresql" in DATABASE_URL:
         pool_pre_ping=True
     )
 else:
-    # SQLite async engine (default)
+    
     async_engine = create_async_engine(
         ASYNC_DATABASE_URL,
         echo=False,
         connect_args={"check_same_thread": False}
     )
 
-# Асинхронная фабрика сессий
+
 AsyncSessionLocal = async_sessionmaker(
     async_engine,
     class_=AsyncSession,
     expire_on_commit=False
 )
 
-# Синхронная фабрика сессий (для совместимости)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=sync_engine)
 
 

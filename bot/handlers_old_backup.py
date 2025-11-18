@@ -1,7 +1,3 @@
-"""
-Обработчики сообщений для Telegram бота
-"""
-
 import logging
 import re
 from typing import List, Optional
@@ -99,16 +95,7 @@ def init_default_categories(db: Session):
 
 
 def classify_task(text: str, db: Session) -> Optional[int]:
-    """
-    Классифицирует задачу по категориям на основе keywords из БД
-    
-    Args:
-        text: Текст задачи
-        db: Сессия базы данных
-        
-    Returns:
-        ID категории
-    """
+ 
     if not text:
        
         category = db.query(Category).filter(Category.name == "uncategorized").first()
@@ -140,21 +127,7 @@ def classify_task(text: str, db: Session) -> Optional[int]:
 async def get_or_create_user(bot: Bot, telegram_id: int, username: str = None, 
                               first_name: str = None, last_name: str = None, 
                               is_bot: bool = False, db: Session = None) -> User:
-    """
-    Получает пользователя из БД или создает нового
-    
-    Args:
-        bot: Объект бота
-        telegram_id: ID пользователя в Telegram
-        username: Username пользователя
-        first_name: Имя
-        last_name: Фамилия
-        is_bot: Является ли пользователь ботом
-        db: Сессия базы данных
-        
-    Returns:
-        Объект User
-    """
+  
     user = db.query(User).filter(User.telegram_id == telegram_id).first()
     
     if not user:
@@ -173,16 +146,7 @@ async def get_or_create_user(bot: Bot, telegram_id: int, username: str = None,
 
 
 async def get_or_create_user_by_username(db: Session, username: str) -> User:
-    """
-    Получает или создает пользователя по username
-    
-    Args:
-        db: Сессия базы данных
-        username: Username пользователя
-        
-    Returns:
-        Объект User или None
-    """
+   
     user = db.query(User).filter(User.username == username).first()
     
     if not user:
@@ -202,16 +166,7 @@ async def get_or_create_user_by_username(db: Session, username: str) -> User:
 
 
 async def notify_assigned_user(bot: Bot, db: Session, username: str, task_text: str, group_chat_id: int = None):
-    """
-    Отправляет уведомление пользователю о назначенной задаче
     
-    Args:
-        bot: Объект бота
-        db: Сессия базы данных
-        username: Username пользователя
-        task_text: Текст задачи
-        group_chat_id: ID группового чата (если нужно отправить сообщение в группу)
-    """
     try:
       
         user = await get_or_create_user_by_username(db, username)
@@ -280,7 +235,7 @@ async def notify_assigned_user(bot: Bot, db: Session, username: str, task_text: 
     except Exception as e:
         logger.error(f"Failed to send notification to @{username}: {e}")
         
-        # Отправляем сообщение в группу при любой другой ошибке
+        
         if group_chat_id:
             try:
                 await bot.send_message(
@@ -297,7 +252,7 @@ async def cmd_start(message: Message):
     db = get_db_session()
     
     try:
-        # Получаем или создаем пользователя
+        
         user = await get_or_create_user(
             bot=message.bot,
             telegram_id=message.from_user.id,
@@ -308,7 +263,7 @@ async def cmd_start(message: Message):
             db=db
         )
         
-        # Обновляем telegram_id, если он был временным
+        
         if user.telegram_id == -1 or user.telegram_id != message.from_user.id:
             user.telegram_id = message.from_user.id
             db.commit()
@@ -384,11 +339,11 @@ async def handle_group_message(message: Message):
     db = get_db_session()
     
     try:
-        # Пропускаем сообщения от ботов
+        
         if message.from_user.is_bot:
             return
         
-        # Получаем или создаем пользователя
+        
         user = await get_or_create_user(
             bot=message.bot,
             telegram_id=message.from_user.id,
@@ -399,7 +354,7 @@ async def handle_group_message(message: Message):
             db=db
         )
         
-        # Сохраняем сообщение
+       
         message_obj = MessageModel(
             message_id=message.message_id,
             chat_id=message.chat.id,
@@ -412,30 +367,30 @@ async def handle_group_message(message: Message):
         db.add(message_obj)
         db.commit()
         
-        # Проверяем, содержит ли сообщение задачу
+        
         has_task = extract_tasks(message.text or "")
         
         if has_task:
             message_obj.has_task = True
             db.commit()
             
-            # Извлекаем упоминания
+            
             mentions = extract_mentions(message.text or "")
             
-            # Классифицируем задачу
+            
             category_id = classify_task(message.text or "", db)
             
-            # Извлекаем информацию о назначенном пользователе
+            
             assigned_user_id = None
             if mentions:
-                # Ищем пользователя по username
+                
                 assigned_user = db.query(User).filter(User.username == mentions[0]).first()
                 if assigned_user:
                     assigned_user_id = assigned_user.id
-                    # Сохраняем текущее сообщение для связи с задачей
+                    
                     db.refresh(message_obj)
             
-            # Создаем задачу
+            
             task = Task(
                 message_id=message_obj.id,
                 category_id=category_id,
@@ -450,7 +405,7 @@ async def handle_group_message(message: Message):
             
             logger.info(f"Task created from message {message.message_id} in chat {message.chat.id}")
             
-            # Уведомляем упомянутого пользователя
+            
             if mentions:
                 for mention in mentions:
                     await notify_assigned_user(

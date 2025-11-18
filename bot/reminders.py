@@ -1,7 +1,3 @@
-"""
-Система автоматических напоминаний о задачах
-"""
-
 import logging
 from datetime import datetime, timedelta
 from typing import List
@@ -16,26 +12,18 @@ from db.database import get_db_session
 
 logger = logging.getLogger(__name__)
 
-# Глобальный планировщик
+
 scheduler = None
 
 
 async def send_reminder(bot: Bot, task: Task, db: Session, reminder_type: str = "upcoming"):
-    """
-    Отправляет напоминание о задаче исполнителю
-
-    Args:
-        bot: Объект бота
-        task: Задача
-        db: Сессия БД
-        reminder_type: Тип напоминания (upcoming, due_today, overdue)
-    """
+    
     try:
         if not task.assignee or task.assignee.telegram_id == -1:
             logger.warning(f"Task {task.id} has no assignee or assignee hasn't started bot")
             return
 
-        # Формируем текст напоминания
+        
         if reminder_type == "upcoming":
             days_left = (task.due_date - datetime.now()).days
             emoji = "📅"
@@ -43,7 +31,7 @@ async def send_reminder(bot: Bot, task: Task, db: Session, reminder_type: str = 
         elif reminder_type == "due_today":
             emoji = "⏰"
             title = "Внимание: Дедлайн сегодня!"
-        else:  # overdue
+        else:  
             emoji = "⚠️"
             title = "ПРОСРОЧЕНО"
 
@@ -61,7 +49,7 @@ async def send_reminder(bot: Bot, task: Task, db: Session, reminder_type: str = 
         notification += f"<b>Приоритет:</b> {task.priority}\n"
         notification += f"<b>Статус:</b> {task.status}\n"
 
-        # Отправляем напоминание
+        
         await bot.send_message(
             chat_id=task.assignee.telegram_id,
             text=notification,
@@ -83,11 +71,11 @@ async def check_and_send_reminders(bot: Bot):
     try:
         logger.info("Checking tasks for reminders...")
 
-        # Получаем текущую дату и время
+        
         tz = pytz.timezone(TIMEZONE)
         now = datetime.now(tz)
 
-        # Получаем все активные задачи с дедлайнами
+        
         tasks = db.query(Task).filter(
             Task.status.in_(["pending", "in_progress"]),
             Task.due_date.isnot(None),
@@ -98,37 +86,34 @@ async def check_and_send_reminders(bot: Bot):
 
         for task in tasks:
             try:
-                # Преобразуем due_date в aware datetime
+                
                 if task.due_date.tzinfo is None:
                     task_due_date = tz.localize(task.due_date)
                 else:
                     task_due_date = task.due_date
 
-                # Вычисляем разницу во времени
+                
                 time_diff = task_due_date - now
 
-                # Проверяем, нужно ли отправить напоминание
+                
                 days_until_due = time_diff.days
                 hours_until_due = time_diff.total_seconds() / 3600
 
-                # Проверяем просроченные задачи (отправляем напоминание каждый день)
                 if hours_until_due < 0:
-                    # Проверяем, сколько дней прошло с момента просрочки
+                    
                     days_overdue = abs(days_until_due)
                     logger.info(f"Task {task.id} is overdue by {days_overdue} days, sending reminder")
                     await send_reminder(bot, task, db, "overdue")
                     continue
 
-                # Проверяем задачи на сегодня (если осталось меньше 24 часов)
+                
                 if 0 <= hours_until_due <= 24:
                     logger.info(f"Task {task.id} is due today ({hours_until_due:.1f} hours left), sending reminder")
                     await send_reminder(bot, task, db, "due_today")
                     continue
 
-                # Проверяем напоминания за N дней (с диапазоном ±12 часов для точности)
                 for interval in REMINDER_INTERVALS:
                     if interval > 0:
-                        # Проверяем диапазон: от interval-0.5 до interval+0.5 дней
                         days_diff = time_diff.total_seconds() / (24 * 3600)
                         if abs(days_diff - interval) < 0.5:
                             logger.info(f"Task {task.id} is due in ~{interval} days, sending reminder")
@@ -148,12 +133,7 @@ async def check_and_send_reminders(bot: Bot):
 
 
 def start_reminder_scheduler(bot: Bot):
-    """
-    Запускает планировщик напоминаний
-
-    Args:
-        bot: Объект бота
-    """
+ 
     global scheduler
 
     if scheduler is not None:
@@ -161,10 +141,10 @@ def start_reminder_scheduler(bot: Bot):
         return
 
     try:
-        # Создаем планировщик
+       
         scheduler = AsyncIOScheduler(timezone=TIMEZONE)
 
-        # Добавляем задачу проверки напоминаний
+        
         scheduler.add_job(
             check_and_send_reminders,
             'interval',
@@ -174,7 +154,7 @@ def start_reminder_scheduler(bot: Bot):
             replace_existing=True
         )
 
-        # Запускаем планировщик
+        
         scheduler.start()
 
         logger.info(f"Reminder scheduler started with interval {REMINDER_CHECK_INTERVAL} minutes")
@@ -184,7 +164,7 @@ def start_reminder_scheduler(bot: Bot):
 
 
 def stop_reminder_scheduler():
-    """Останавливает планировщик напоминаний"""
+    
     global scheduler
 
     if scheduler is not None:

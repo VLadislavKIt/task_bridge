@@ -1,5 +1,3 @@
-
-
 from fastapi import FastAPI, Depends, HTTPException
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -16,19 +14,17 @@ from pathlib import Path
 app = FastAPI(title="TaskBridge API")
 
 
-# Путь к webapp директории (где лежит этот файл app.py и index.html)
+
 webapp_dir = Path(__file__).parent
 index_html_path = webapp_dir / "index.html"
 
-# Проверка при запуске
+
 import logging
 logger = logging.getLogger(__name__)
 logger.info(f"Webapp directory: {webapp_dir}")
 logger.info(f"Index.html path: {index_html_path}")
 logger.info(f"Index.html exists: {index_html_path.exists()}")
 
-# Монтируем статические файлы (если будут добавлены CSS, JS, images)
-# app.mount("/static", StaticFiles(directory=str(webapp_dir / "static")), name="static")
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
@@ -269,7 +265,7 @@ async def get_task_files(task_id: int, db: Session = Depends(get_db)):
     return result
 
 
-# Комментарии к задачам
+
 class CommentCreate(BaseModel):
     text: str
     user_id: int

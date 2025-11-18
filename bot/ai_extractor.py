@@ -1,7 +1,3 @@
-"""
-AI-движок для извлечения задач из текста с помощью OpenAI
-"""
-
 import logging
 import json
 from typing import Optional, Dict, Any
@@ -14,12 +10,12 @@ from config import OPENAI_API_KEY, OPENAI_MODEL, OPENAI_TEMPERATURE, OPENAI_MAX_
 
 logger = logging.getLogger(__name__)
 
-# Инициализация клиента OpenAI
+
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 
 def get_current_datetime() -> str:
-    """Получить текущую дату и время в нужной таймзоне"""
+    
     tz = pytz.timezone(TIMEZONE)
     now = datetime.now(tz)
     return now.strftime("%Y-%m-%d %H:%M:%S %Z")
@@ -115,25 +111,7 @@ SYSTEM_PROMPT = """Ты — AI-ассистент для извлечения з
 
 
 async def analyze_message_with_ai(text: str) -> Optional[Dict[str, Any]]:
-    """
-    Анализирует сообщение с помощью OpenAI и извлекает задачу
-
-    Args:
-        text: Текст сообщения для анализа
-
-    Returns:
-        Dict с информацией о задаче или None если задачи нет
-        {
-            "has_task": bool,
-            "task": {
-                "title": str,
-                "description": str,
-                "assignee_username": str or None,
-                "due_date": datetime or None,
-                "priority": str
-            } or None
-        }
-    """
+  
     if not text or len(text.strip()) == 0:
         return None
 
@@ -158,27 +136,27 @@ async def analyze_message_with_ai(text: str) -> Optional[Dict[str, Any]]:
             response_format={"type": "json_object"}
         )
 
-        # Извлекаем ответ
+        
         result_text = response.choices[0].message.content
         logger.info(f"OpenAI response: {result_text}")
 
-        # Парсим JSON
+        
         result = json.loads(result_text)
 
-        # Валидация результата
+        
         if not isinstance(result, dict) or "has_task" not in result:
             logger.error(f"Invalid AI response format: {result}")
             return None
 
-        # Если задачи нет, возвращаем результат
+        
         if not result.get("has_task", False):
             return result
 
-        # Если задача есть, парсим дату
+        
         task = result.get("task")
         if task and task.get("due_date"):
             try:
-                # Парсим строку даты
+                
                 due_date_str = task["due_date"]
                 task["due_date_parsed"] = date_parser.parse(due_date_str)
             except Exception as date_error:
@@ -193,21 +171,13 @@ async def analyze_message_with_ai(text: str) -> Optional[Dict[str, Any]]:
 
 
 def extract_task_simple(text: str) -> bool:
-    """
-    Простое извлечение задач по ключевым словам (fallback если AI недоступен)
-
-    Args:
-        text: Текст для анализа
-
-    Returns:
-        True если похоже на задачу, False иначе
-    """
+    
     if not text:
         return False
 
     text_lower = text.lower()
 
-    # Ключевые слова для определения задачи
+    
     task_keywords = [
         "сделать", "нужно", "необходимо", "надо", "требуется",
         "выполни", "подготовь", "создай", "напиши", "исправь",
@@ -221,7 +191,7 @@ def extract_task_simple(text: str) -> bool:
         if keyword in text_lower:
             return True
 
-    # Если есть упоминание (@username)
+    
     if '@' in text:
         return True
 
@@ -229,16 +199,7 @@ def extract_task_simple(text: str) -> bool:
 
 
 async def analyze_message(text: str, use_ai: bool = True) -> Optional[Dict[str, Any]]:
-    """
-    Главная функция для анализа сообщения
-
-    Args:
-        text: Текст сообщения
-        use_ai: Использовать ли AI (если False, используется простой метод)
-
-    Returns:
-        Результат анализа
-    """
+    
     if not text:
         return None
 
@@ -249,19 +210,19 @@ async def analyze_message(text: str, use_ai: bool = True) -> Optional[Dict[str, 
             if result is not None:
                 return result
             else:
-                # Если AI вернул None, используем fallback
+                
                 logger.warning("AI returned None, using simple extraction")
         except Exception as e:
             logger.error(f"AI analysis failed: {e}, using simple extraction")
 
-    # Fallback: простое извлечение
+    
     has_task = extract_task_simple(text)
 
     if has_task:
         return {
             "has_task": True,
             "task": {
-                "title": text[:100],  # Первые 100 символов как заголовок
+                "title": text[:100],  
                 "description": text,
                 "assignee_username": None,
                 "due_date": None,

@@ -1,5 +1,3 @@
-
-
 import asyncio
 import logging
 from aiogram import Bot, Dispatcher
@@ -44,7 +42,7 @@ async def start_bot_polling():
 
     logger.info("Bot started in polling mode")
 
-    # Запускаем планировщик напоминаний
+ 
     start_reminder_scheduler(bot)
     logger.info("Reminder scheduler started")
 
@@ -98,14 +96,14 @@ async def start_bot_webhook():
 def start_webapp():
     """Запуск веб-приложения"""
     import os
-    # Railway автоматически устанавливает PORT, используем его если доступен
+    
     port = int(os.environ.get("PORT", PORT))
     logger.info(f"Starting web app on {HOST}:{port}")
     uvicorn.run(webapp_app, host=HOST, port=port)
 
 
 async def main():
-    """Главная функция"""
+    
     if USE_WEBHOOK:
         logger.info("Starting in webhook mode")
         await start_bot_webhook()

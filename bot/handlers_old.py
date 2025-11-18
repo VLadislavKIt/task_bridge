@@ -1,7 +1,3 @@
-"""
-Обновленные обработчики сообщений для Telegram бота с AI и системой подтверждения
-"""
-
 import logging
 import re
 from typing import List, Optional
@@ -23,7 +19,7 @@ router = Router()
 
 
 def init_default_categories(db: Session):
-    """Инициализация стандартных категорий задач"""
+    
     default_categories = [
         {
             "name": "Разработка",
@@ -97,7 +93,7 @@ def classify_task(text: str, db: Session) -> Optional[int]:
 async def get_or_create_user(bot: Bot, telegram_id: int, username: str = None,
                               first_name: str = None, last_name: str = None,
                               is_bot: bool = False, db: Session = None) -> User:
-    """Получает пользователя из БД или создает нового"""
+    
     user = db.query(User).filter(User.telegram_id == telegram_id).first()
 
     if not user:
@@ -116,7 +112,7 @@ async def get_or_create_user(bot: Bot, telegram_id: int, username: str = None,
 
 
 async def get_or_create_user_by_username(db: Session, username: str) -> User:
-    """Получает или создает пользователя по username"""
+    
     user = db.query(User).filter(User.username == username).first()
 
     if not user:
@@ -135,7 +131,7 @@ async def get_or_create_user_by_username(db: Session, username: str) -> User:
 
 
 async def notify_assigned_user(bot: Bot, task_id: int, db: Session):
-    """Отправляет уведомление исполнителю о новой задаче"""
+    
     try:
         task = db.query(Task).filter(Task.id == task_id).first()
         if not task or not task.assignee:
@@ -143,12 +139,12 @@ async def notify_assigned_user(bot: Bot, task_id: int, db: Session):
 
         assignee = task.assignee
 
-        # Проверяем, что у пользователя есть telegram_id
+        
         if assignee.telegram_id == -1 or assignee.telegram_id is None:
             logger.warning(f"User @{assignee.username} hasn't started a chat with the bot")
             return
 
-        # Формируем текст уведомления
+        
         notification = (
             f"🔔 <b>Вам назначена новая задача</b>\n\n"
             f"<b>Задача:</b> {task.title}\n"
@@ -162,7 +158,7 @@ async def notify_assigned_user(bot: Bot, task_id: int, db: Session):
 
         notification += f"<b>Приоритет:</b> {task.priority}\n"
 
-        # Добавляем кнопки
+        
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [
                 InlineKeyboardButton(
@@ -178,7 +174,7 @@ async def notify_assigned_user(bot: Bot, task_id: int, db: Session):
             ]
         ])
 
-        # Отправляем уведомление
+        
         await bot.send_message(
             chat_id=assignee.telegram_id,
             text=notification,
@@ -210,7 +206,7 @@ async def cmd_start(message: Message):
             db=db
         )
 
-        # Обновляем telegram_id, если он был временным
+        
         if user.telegram_id == -1 or user.telegram_id != message.from_user.id:
             user.telegram_id = message.from_user.id
             db.commit()
@@ -294,10 +290,10 @@ async def handle_confirm_task(callback: CallbackQuery):
     db = get_db_session()
 
     try:
-        # Извлекаем ID ожидающей задачи
+        
         pending_task_id = int(callback.data.split(":")[1])
 
-        # Получаем задачу
+       
         pending_task = db.query(PendingTask).filter(PendingTask.id == pending_task_id).first()
 
         if not pending_task:
@@ -308,16 +304,16 @@ async def handle_confirm_task(callback: CallbackQuery):
             await callback.answer("Задача уже обработана", show_alert=True)
             return
 
-        # Определяем исполнителя
+        
         assigned_user_id = None
         if pending_task.assignee_username:
             assignee = await get_or_create_user_by_username(db, pending_task.assignee_username)
             assigned_user_id = assignee.id
 
-        # Классифицируем задачу
+        
         category_id = classify_task(pending_task.description or pending_task.title, db)
 
-        # Создаем финальную задачу
+        
         task = Task(
             message_id=pending_task.message_id,
             category_id=category_id,
@@ -333,15 +329,15 @@ async def handle_confirm_task(callback: CallbackQuery):
         db.commit()
         db.refresh(task)
 
-        # Обновляем статус ожидающей задачи
+        
         pending_task.status = "confirmed"
         db.commit()
 
-        # Отправляем уведомление исполнителю
+       
         if assigned_user_id:
             await notify_assigned_user(callback.bot, task.id, db)
 
-        # Обновляем сообщение с подтверждением
+        
         await callback.message.edit_text(
             f"✅ <b>Задача подтверждена и отправлена!</b>\n\n"
             f"<b>Задача:</b> {task.title}\n"
@@ -437,11 +433,11 @@ async def handle_group_message(message: Message):
     db = get_db_session()
 
     try:
-        # Пропускаем сообщения от ботов
+        
         if message.from_user.is_bot:
             return
 
-        # Получаем или создаем пользователя
+       
         user = await get_or_create_user(
             bot=message.bot,
             telegram_id=message.from_user.id,
@@ -452,7 +448,7 @@ async def handle_group_message(message: Message):
             db=db
         )
 
-        # Сохраняем сообщение
+        
         message_obj = MessageModel(
             message_id=message.message_id,
             chat_id=message.chat.id,
@@ -466,7 +462,7 @@ async def handle_group_message(message: Message):
         db.commit()
         db.refresh(message_obj)
 
-        # Анализируем сообщение с помощью AI
+        
         logger.info(f"Analyzing message: {message.text[:50]}...")
         ai_result = await analyze_message(message.text or "", use_ai=True)
 
@@ -474,13 +470,13 @@ async def handle_group_message(message: Message):
             logger.info("No task found in message")
             return
 
-        # Задача найдена!
+        
         message_obj.has_task = True
         db.commit()
 
         task_data = ai_result.get("task", {})
 
-        # Создаем ожидающую подтверждения задачу
+        
         pending_task = PendingTask(
             message_id=message_obj.id,
             chat_id=message.chat.id,
@@ -497,7 +493,7 @@ async def handle_group_message(message: Message):
         db.commit()
         db.refresh(pending_task)
 
-        # Формируем сообщение для подтверждения
+        
         confirmation_text = (
             f"🤖 <b>AI обнаружил задачу!</b>\n\n"
             f"<b>Задача:</b> {pending_task.title}\n"
@@ -515,7 +511,7 @@ async def handle_group_message(message: Message):
         confirmation_text += f"<b>Приоритет:</b> {pending_task.priority}\n\n"
         confirmation_text += "Подтвердите создание задачи:"
 
-        # Кнопки подтверждения
+        
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [
                 InlineKeyboardButton(
@@ -529,7 +525,7 @@ async def handle_group_message(message: Message):
             ]
         ])
 
-        # Отправляем сообщение создателю задачи
+        
         sent_message = await message.bot.send_message(
             chat_id=message.from_user.id,
             text=confirmation_text,
@@ -537,7 +533,7 @@ async def handle_group_message(message: Message):
             parse_mode="HTML"
         )
 
-        # Сохраняем ID сообщения с подтверждением
+        
         pending_task.telegram_message_id = sent_message.message_id
         db.commit()
 
@@ -545,7 +541,7 @@ async def handle_group_message(message: Message):
 
     except TelegramForbiddenError:
         logger.warning(f"User hasn't started the bot, cannot send confirmation")
-        # Можно отправить сообщение в группу с просьбой начать чат с ботом
+        
         try:
             await message.answer(
                 f"👋 {message.from_user.first_name}, пожалуйста, начните чат со мной (/start), "

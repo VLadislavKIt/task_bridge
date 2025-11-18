@@ -1,14 +1,3 @@
-"""
-Модели базы данных для TaskBridge
-
-Таблицы:
-- users: Пользователи Telegram
-- messages: Все сообщения из чатов
-- tasks: Извлеченные задачи
-- categories: Категории задач
-- pending_tasks: Задачи, ожидающие подтверждения руководителем
-"""
-
 from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -18,7 +7,7 @@ Base = declarative_base()
 
 
 class User(Base):
-    """Модель пользователя Telegram"""
+    
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True)
@@ -38,7 +27,7 @@ class User(Base):
 
 
 class Message(Base):
-    """Модель сообщения из чата"""
+    
     __tablename__ = "messages"
 
     id = Column(Integer, primary_key=True)
@@ -50,7 +39,7 @@ class Message(Base):
     has_task = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    # Связи
+    
     user = relationship("User", back_populates="messages")
     tasks = relationship("Task", back_populates="message")
 
@@ -68,7 +57,7 @@ class Category(Base):
     keywords = Column(JSON, nullable=True)  # Список ключевых слов для автоматической классификации
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    # Связи
+    
     tasks = relationship("Task", back_populates="category")
 
     def __repr__(self):
@@ -91,7 +80,7 @@ class Task(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Связи
+    
     message = relationship("Message", back_populates="tasks")
     category = relationship("Category", back_populates="tasks")
     assignee = relationship("User", foreign_keys=[assigned_to], back_populates="assigned_tasks")
@@ -109,14 +98,14 @@ class PendingTask(Base):
     chat_id = Column(Integer, nullable=False)  # ID группового чата
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # Кто написал сообщение
 
-    # Извлеченные AI данные
+    
     title = Column(String(500), nullable=False)
     description = Column(Text, nullable=True)
     assignee_username = Column(String(255), nullable=True)
     due_date = Column(DateTime, nullable=True)
     priority = Column(String(50), default="normal")
 
-    # Статус подтверждения
+   
     status = Column(String(50), default="pending")  # pending, confirmed, rejected
     telegram_message_id = Column(Integer, nullable=True)  # ID сообщения с кнопками подтверждения
 
@@ -135,14 +124,14 @@ class TaskFile(Base):
     task_id = Column(Integer, ForeignKey("tasks.id"), nullable=False)
     uploaded_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
-    # Информация о файле
+    
     file_type = Column(String(50), nullable=False)  # photo, document, video
     file_id = Column(String(500), nullable=False)  # Telegram file_id
     file_name = Column(String(500), nullable=True)  # Имя файла (для документов)
     file_size = Column(Integer, nullable=True)  # Размер в байтах
     mime_type = Column(String(100), nullable=True)  # MIME type
 
-    # Описание от исполнителя
+    
     caption = Column(Text, nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)

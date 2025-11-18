@@ -1,4 +1,4 @@
-# Python
+
 __pycache__/
 *.py[cod]
 *$py.class
@@ -9,30 +9,25 @@ env/
 ENV/
 .venv
 
-# Database
-*.db
-*.sqlite
-*.sqlite3
-db.sqlite*
 
-# IDE
+
+
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# Environment variables
+
 .env
 .env.local
 
-# Logs
+
 *.log
 logs/
 
-# OS
+
 .DS_Store
 Thumbs.db
 
-# Config with sensitive data
-# config.py - раскомментируйте, если используете .env
+

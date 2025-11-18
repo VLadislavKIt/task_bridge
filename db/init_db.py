@@ -1,12 +1,4 @@
-"""
-Скрипт инициализации базы данных для TaskBridge
 
-Запуск:
-    python db/init_db.py
-
-Этот скрипт создает все таблицы в базе данных
-и инициализирует категории по умолчанию.
-"""
 
 import logging
 from db.database import init_db, get_db_session

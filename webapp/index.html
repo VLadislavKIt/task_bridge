@@ -250,7 +250,7 @@
             </div>
         </div>
 
-        <!-- Детали задачи -->
+        
         <div id="task-detail-view" class="hidden">
             <button class="back-button" onclick="showTaskList()">← Назад к списку</button>
 
@@ -284,15 +284,15 @@
         tg.ready();
         tg.expand();
 
-        // Получение параметров из URL
+        
         const urlParams = new URLSearchParams(window.location.search);
-        const mode = urlParams.get('mode') || 'manager'; // executor или manager
+        const mode = urlParams.get('mode') || 'manager'; 
         const userId = parseInt(urlParams.get('user_id') || '0');
 
-        // Текущая задача для просмотра деталей
+        
         let currentTask = null;
 
-        // Настройка заголовка в зависимости от режима
+        
         if (mode === 'executor') {
             document.getElementById('header-title').textContent = '✅ Мои задачи';
             document.getElementById('header-subtitle').textContent = 'Задачи, назначенные мне';
@@ -301,7 +301,7 @@
             document.getElementById('header-subtitle').textContent = 'Задачи моих исполнителей';
         }
 
-        // Загрузка статистики
+        
         async function loadStats() {
             try {
                 let url = `${API_BASE}/api/tasks?`;
@@ -322,13 +322,13 @@
             }
         }
 
-        // Загрузка списка задач
+       
         async function loadTasks() {
             try {
                 let url = `${API_BASE}/api/tasks?`;
 
                 if (mode === 'executor' && userId) {
-                    // Исполнитель видит только свои задачи
+                    
                     url += `assigned_to=${userId}`;
                 }
 
@@ -342,7 +342,7 @@
             }
         }
 
-        // Отображение списка задач
+        
         function renderTasks(tasks) {
             const container = document.getElementById('tasks-container');
 
@@ -366,13 +366,13 @@
             `).join('');
         }
 
-        // Показать детали задачи
+        
         async function showTaskDetail(taskId) {
             document.getElementById('tasks-view').classList.add('hidden');
             document.getElementById('task-detail-view').classList.remove('hidden');
 
             try {
-                // Загрузка деталей задачи
+                
                 const taskResponse = await fetch(`${API_BASE}/api/tasks/${taskId}`);
                 currentTask = await taskResponse.json();
 
@@ -389,12 +389,12 @@
                     </div>
                 `;
 
-                // Загрузка файлов
+                
                 const filesResponse = await fetch(`${API_BASE}/api/tasks/${taskId}/files`);
                 const files = await filesResponse.json();
                 renderFiles(files);
 
-                // Загрузка комментариев
+                
                 const commentsResponse = await fetch(`${API_BASE}/api/tasks/${taskId}/comments`);
                 const comments = await commentsResponse.json();
                 renderComments(comments);
@@ -404,7 +404,7 @@
             }
         }
 
-        // Отображение файлов
+        
         function renderFiles(files) {
             const container = document.getElementById('files-container');
             document.getElementById('files-count').textContent = files.length;
@@ -427,7 +427,7 @@
             `).join('');
         }
 
-        // Отображение комментариев
+        
         function renderComments(comments) {
             const container = document.getElementById('comments-container');
             document.getElementById('comments-count').textContent = comments.length;
@@ -446,7 +446,7 @@
             `).join('');
         }
 
-        // Добавить комментарий
+        
         async function addComment() {
             const input = document.getElementById('comment-input');
             const text = input.value.trim();
@@ -467,7 +467,7 @@
 
                 if (response.ok) {
                     input.value = '';
-                    // Перезагрузить комментарии
+                    
                     const commentsResponse = await fetch(`${API_BASE}/api/tasks/${currentTask.id}/comments`);
                     const comments = await commentsResponse.json();
                     renderComments(comments);
@@ -478,18 +478,18 @@
             }
         }
 
-        // Вернуться к списку задач
+        
         function showTaskList() {
             document.getElementById('tasks-view').classList.remove('hidden');
             document.getElementById('task-detail-view').classList.add('hidden');
             currentTask = null;
 
-            // Перезагрузить список
+            
             loadStats();
             loadTasks();
         }
 
-        // Утилиты
+        
         function getStatusLabel(status) {
             const labels = {
                 'pending': 'Ожидает',
@@ -511,7 +511,7 @@
             return div.innerHTML;
         }
 
-        // Инициализация
+        
         (async () => {
             await loadStats();
             await loadTasks();

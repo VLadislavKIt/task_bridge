@@ -1,7 +1,3 @@
-"""
-Обновленные обработчики с исправлениями всех проблем
-"""
-
 import logging
 import re
 from typing import List, Optional
@@ -72,7 +68,7 @@ def init_default_categories(db: Session):
 
 
 def classify_task(text: str, db: Session) -> Optional[int]:
-    """Классификация задачи по категориям на основе keywords из БД"""
+    
     if not text:
         category = db.query(Category).filter(Category.name == "uncategorized").first()
         if not category:
@@ -117,7 +113,7 @@ async def get_or_create_user(bot: Bot, telegram_id: int, username: str = None,
 
 
 async def get_or_create_user_by_username(db: Session, username: str) -> User:
-    """Получает или создает пользователя по username"""
+    
     user = db.query(User).filter(User.username == username).first()
 
     if not user:
@@ -136,12 +132,7 @@ async def get_or_create_user_by_username(db: Session, username: str) -> User:
 
 
 async def notify_assigned_user(bot: Bot, task_id: int, db: Session) -> bool:
-    """
-    Отправляет уведомление исполнителю о новой задаче
-
-    Returns:
-        bool: True если уведомление отправлено, False если нет
-    """
+    
     try:
         task = db.query(Task).filter(Task.id == task_id).first()
         if not task or not task.assignee:
@@ -150,12 +141,12 @@ async def notify_assigned_user(bot: Bot, task_id: int, db: Session) -> bool:
 
         assignee = task.assignee
 
-        # Проверяем, что у пользователя есть telegram_id
+        
         if assignee.telegram_id == -1 or assignee.telegram_id is None:
             logger.warning(f"User @{assignee.username} hasn't started a chat with the bot")
             return False
 
-        # Формируем текст уведомления
+        
         notification = (
             f"🔔 <b>Вам назначена новая задача</b>\n\n"
             f"<b>Задача:</b> {task.title}\n"
@@ -170,7 +161,7 @@ async def notify_assigned_user(bot: Bot, task_id: int, db: Session) -> bool:
         notification += f"<b>Приоритет:</b> {task.priority}\n"
         notification += f"<b>Статус:</b> {task.status}\n"
 
-        # Добавляем кнопки + WebApp для исполнителя
+        
         webapp_url = f"{WEB_APP_DOMAIN}/webapp/index.html?mode=executor&user_id={assignee.id}"
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [
@@ -193,7 +184,7 @@ async def notify_assigned_user(bot: Bot, task_id: int, db: Session) -> bool:
             ]
         ])
 
-        # Отправляем уведомление
+        
         await bot.send_message(
             chat_id=assignee.telegram_id,
             text=notification,
@@ -228,13 +219,13 @@ async def cmd_start(message: Message):
             db=db
         )
 
-        # Обновляем telegram_id, если он был временным
+        
         if user.telegram_id == -1 or user.telegram_id != message.from_user.id:
             user.telegram_id = message.from_user.id
             db.commit()
             logger.info(f"Updated telegram_id for user @{user.username} (ID: {user.id})")
 
-        # WebApp URL для исполнителя
+        
         webapp_url = f"{WEB_APP_DOMAIN}/webapp/index.html?mode=executor&user_id={user.id}"
 
         welcome_message = (
@@ -243,7 +234,7 @@ async def cmd_start(message: Message):
             "Добавьте меня в групповой чат, чтобы я начал анализировать сообщения."
         )
 
-        # Кнопка WebApp
+        
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [
                 InlineKeyboardButton(
@@ -307,11 +298,11 @@ async def handle_task_start(callback: CallbackQuery):
             await callback.answer("Задача уже выполнена", show_alert=True)
             return
 
-        # Меняем статус на "в процессе"
+        
         task.status = "in_progress"
         db.commit()
 
-        # Обновляем сообщение
+        
         notification = (
             f"▶️ <b>Задача в процессе выполнения</b>\n\n"
             f"<b>Задача:</b> {task.title}\n"
@@ -327,7 +318,7 @@ async def handle_task_start(callback: CallbackQuery):
         notification += f"<b>Статус:</b> в процессе\n"
         notification += f"\n📎 Можете отправить фото/файлы как отчёт"
 
-        # Обновляем кнопки
+        
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [
                 InlineKeyboardButton(
@@ -364,16 +355,16 @@ async def handle_confirm_task(callback: CallbackQuery):
             await callback.answer("Задача уже обработана", show_alert=True)
             return
 
-        # Определяем исполнителя
+        
         assigned_user_id = None
         if pending_task.assignee_username:
             assignee = await get_or_create_user_by_username(db, pending_task.assignee_username)
             assigned_user_id = assignee.id
 
-        # Классифицируем задачу
+       
         category_id = classify_task(pending_task.description or pending_task.title, db)
 
-        # Создаем финальную задачу
+        
         task = Task(
             message_id=pending_task.message_id,
             category_id=category_id,
@@ -389,17 +380,16 @@ async def handle_confirm_task(callback: CallbackQuery):
         db.commit()
         db.refresh(task)
 
-        # Обновляем статус ожидающей задачи
+        
         pending_task.status = "confirmed"
         db.commit()
 
-        # Отправляем уведомление исполнителю
+        
         if assigned_user_id:
-            # Получаем информацию о задаче для сообщения в группе
+            
             assignee = db.query(User).filter(User.id == assigned_user_id).first()
             notification_sent = await notify_assigned_user(callback.bot, task.id, db)
 
-            # Если уведомление не отправлено (пользователь не начал чат), сообщаем в группу
             if not notification_sent and assignee and pending_task.assignee_username:
                 try:
                     await callback.bot.send_message(
@@ -411,11 +401,11 @@ async def handle_confirm_task(callback: CallbackQuery):
                 except Exception as e:
                     logger.error(f"Failed to send group notification: {e}")
 
-        # WebApp URL для руководителя (создателя задачи)
+        
         creator = db.query(User).filter(User.id == pending_task.created_by_id).first()
         webapp_url = f"{WEB_APP_DOMAIN}/webapp/index.html?mode=manager&user_id={creator.id}" if creator else f"{WEB_APP_DOMAIN}/webapp/index.html"
 
-        # Кнопка WebApp для руководителя
+        
         manager_keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [
                 InlineKeyboardButton(
@@ -425,7 +415,7 @@ async def handle_confirm_task(callback: CallbackQuery):
             ]
         ])
 
-        # Обновляем сообщение с подтверждением + WebApp кнопка
+        
         await callback.message.edit_text(
             f"✅ <b>Задача подтверждена и отправлена!</b>\n\n"
             f"<b>Задача:</b> {task.title}\n"
@@ -522,11 +512,11 @@ async def handle_group_message(message: Message):
     db = get_db_session()
 
     try:
-        # Пропускаем сообщения от ботов
+        
         if message.from_user.is_bot:
             return
 
-        # Получаем или создаем пользователя
+        
         user = await get_or_create_user(
             bot=message.bot,
             telegram_id=message.from_user.id,
@@ -537,12 +527,12 @@ async def handle_group_message(message: Message):
             db=db
         )
 
-        # Если сообщение без текста (например, только стикер)
+        
         if not message.text:
             logger.info("Message without text, skipping")
             return
 
-        # Сохраняем сообщение
+        
         message_obj = MessageModel(
             message_id=message.message_id,
             chat_id=message.chat.id,
@@ -556,7 +546,7 @@ async def handle_group_message(message: Message):
         db.commit()
         db.refresh(message_obj)
 
-        # Анализируем сообщение с помощью AI
+        
         logger.info(f"Analyzing message: {message.text[:50]}...")
         ai_result = await analyze_message(message.text, use_ai=True)
 
@@ -564,17 +554,17 @@ async def handle_group_message(message: Message):
             logger.info("No task found in message")
             return
 
-        # Задача найдена!
+        
         message_obj.has_task = True
         db.commit()
 
         task_data = ai_result.get("task", {})
 
-        # ЛОГИРУЕМ ВСЕ ДАННЫЕ
+        
         logger.info(f"Task data from AI: {task_data}")
         logger.info(f"Assignee username from AI: {task_data.get('assignee_username')}")
 
-        # Создаем ожидающую подтверждения задачу
+        
         pending_task = PendingTask(
             message_id=message_obj.id,
             chat_id=message.chat.id,
@@ -593,7 +583,7 @@ async def handle_group_message(message: Message):
         db.commit()
         db.refresh(pending_task)
 
-        # Формируем сообщение для подтверждения
+        
         confirmation_text = (
             f"🤖 <b>AI обнаружил задачу!</b>\n\n"
             f"<b>Задача:</b> {pending_task.title}\n"
@@ -611,7 +601,7 @@ async def handle_group_message(message: Message):
         confirmation_text += f"<b>Приоритет:</b> {pending_task.priority}\n\n"
         confirmation_text += "Подтвердите создание задачи:"
 
-        # Кнопки подтверждения
+       
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [
                 InlineKeyboardButton(
@@ -625,7 +615,7 @@ async def handle_group_message(message: Message):
             ]
         ])
 
-        # Отправляем сообщение создателю задачи
+        
         sent_message = await message.bot.send_message(
             chat_id=message.from_user.id,
             text=confirmation_text,
@@ -633,7 +623,7 @@ async def handle_group_message(message: Message):
             parse_mode="HTML"
         )
 
-        # Сохраняем ID сообщения с подтверждением
+        
         pending_task.telegram_message_id = sent_message.message_id
         db.commit()
 
@@ -660,7 +650,7 @@ async def handle_file_upload(message: Message):
     db = get_db_session()
 
     try:
-        # Получаем пользователя
+        
         user = await get_or_create_user(
             bot=message.bot,
             telegram_id=message.from_user.id,
@@ -671,7 +661,7 @@ async def handle_file_upload(message: Message):
             db=db
         )
 
-        # Ищем активные задачи пользователя (в процессе выполнения)
+        
         active_tasks = db.query(Task).filter(
             Task.assigned_to == user.id,
             Task.status == "in_progress"
@@ -684,13 +674,13 @@ async def handle_file_upload(message: Message):
             )
             return
 
-        # Если несколько активных задач, берем самую свежую
+        
         task = active_tasks[0]
         if len(active_tasks) > 1:
             task = max(active_tasks, key=lambda t: t.updated_at or t.created_at)
             logger.info(f"User has {len(active_tasks)} active tasks, using most recent: {task.id}")
 
-        # Определяем тип файла и извлекаем данные
+        
         file_type = None
         file_id = None
         file_name = None
@@ -699,7 +689,7 @@ async def handle_file_upload(message: Message):
         caption = message.caption
 
         if message.photo:
-            # Берем самое большое фото
+            
             photo = message.photo[-1]
             file_type = "photo"
             file_id = photo.file_id
@@ -715,7 +705,7 @@ async def handle_file_upload(message: Message):
             file_size = doc.file_size
             mime_type = doc.mime_type
 
-        # Сохраняем файл в БД
+        
         task_file = TaskFile(
             task_id=task.id,
             uploaded_by_id=user.id,
@@ -731,7 +721,7 @@ async def handle_file_upload(message: Message):
         db.commit()
         db.refresh(task_file)
 
-        # Формируем подтверждение
+        
         confirmation = (
             f"✅ <b>Файл прикреплён к задаче!</b>\n\n"
             f"<b>Задача:</b> {task.title}\n"

@@ -426,7 +426,7 @@ async def handle_group_message(message: Message):
 
 @router.message()
 async def handle_other_message(message: Message):
-    """Обработчик остальных сообщений"""
+    
     if message.chat.type == "private":
         await message.answer(
             "Привет! 👋\n\n"

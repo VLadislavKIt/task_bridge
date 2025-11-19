@@ -131,22 +131,93 @@ async def get_or_create_user_by_username(db: Session, username: str) -> User:
     return user
 
 
-async def notify_assigned_user(bot: Bot, task_id: int, db: Session) -> bool:
-    
+async def notify_comment_added(bot: Bot, task_id: int, comment_author_id: int, comment_text: str, db: Session) -> None:
+    """
+    Отправляет уведомления о новом комментарии всем участникам задачи
+    (создателю и исполнителям), кроме автора комментария.
+    """
     try:
         task = db.query(Task).filter(Task.id == task_id).first()
-        if not task or not task.assignee:
-            logger.warning(f"Task {task_id} has no assignee")
+        if not task:
+            logger.warning(f"Task {task_id} not found")
+            return
+
+        comment_author = db.query(User).filter(User.id == comment_author_id).first()
+
+        # Собираем всех участников задачи (создатель + исполнители)
+        participants = set()
+
+        # Добавляем создателя задачи
+        if task.creator and task.creator.id != comment_author_id:
+            participants.add(task.creator)
+
+        # Добавляем всех исполнителей
+        for assignee in task.assignees:
+            if assignee.id != comment_author_id:
+                participants.add(assignee)
+
+        # Формируем уведомление
+        notification = (
+            f"💬 <b>Новый комментарий к задаче</b>\n\n"
+            f"<b>Задача:</b> {task.title}\n"
+            f"<b>Автор:</b> {comment_author.first_name or comment_author.username}\n"
+            f"<b>Комментарий:</b> {comment_text[:200]}{'...' if len(comment_text) > 200 else ''}\n"
+        )
+
+        # Отправляем уведомления всем участникам
+        for participant in participants:
+            if participant.telegram_id and participant.telegram_id != -1:
+                try:
+                    webapp_url = f"{WEB_APP_DOMAIN}/webapp/index.html?mode=executor&user_id={participant.id}&task_id={task.id}"
+                    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                        [
+                            InlineKeyboardButton(
+                                text="📱 Открыть задачу",
+                                web_app=WebAppInfo(url=webapp_url)
+                            )
+                        ]
+                    ])
+
+                    await bot.send_message(
+                        chat_id=participant.telegram_id,
+                        text=notification,
+                        reply_markup=keyboard,
+                        parse_mode="HTML"
+                    )
+                    logger.info(f"Comment notification sent to user @{participant.username}")
+                except TelegramForbiddenError:
+                    logger.warning(f"User @{participant.username} blocked the bot")
+                except Exception as e:
+                    logger.error(f"Failed to send comment notification to @{participant.username}: {e}")
+    except Exception as e:
+        logger.error(f"Error in notify_comment_added: {e}", exc_info=True)
+
+
+async def notify_assigned_user(bot: Bot, task_id: int, db: Session, assignee: User = None) -> bool:
+    """
+    Отправляет уведомление исполнителю о назначении задачи.
+    Если assignee не указан, берет первого исполнителя из task.assignees (для обратной совместимости).
+    """
+    try:
+        task = db.query(Task).filter(Task.id == task_id).first()
+        if not task:
+            logger.warning(f"Task {task_id} not found")
             return False
 
-        assignee = task.assignee
+        # Если исполнитель не передан, берем из связей задачи
+        if not assignee:
+            if task.assignees:
+                assignee = task.assignees[0]
+            else:
+                logger.warning(f"Task {task_id} has no assignees")
+                return False
 
-        
+        # Проверяем, что у пользователя есть telegram_id
         if assignee.telegram_id == -1 or assignee.telegram_id is None:
             logger.warning(f"User @{assignee.username} hasn't started a chat with the bot")
             return False
 
-        
+        # Формируем уведомление
         notification = (
             f"🔔 <b>Вам назначена новая задача</b>\n\n"
             f"<b>Задача:</b> {task.title}\n"
@@ -155,13 +226,18 @@ async def notify_assigned_user(bot: Bot, task_id: int, db: Session) -> bool:
         if task.description and task.description != task.title:
             notification += f"<b>Описание:</b> {task.description}\n"
 
+        # Показываем всех исполнителей, если их несколько
+        if len(task.assignees) > 1:
+            assignees_str = ", ".join([f"@{a.username}" for a in task.assignees if a.username])
+            notification += f"<b>Исполнители:</b> {assignees_str}\n"
+
         if task.due_date:
             notification += f"<b>Срок:</b> {task.due_date.strftime('%d.%m.%Y %H:%M')}\n"
 
         notification += f"<b>Приоритет:</b> {task.priority}\n"
         notification += f"<b>Статус:</b> {task.status}\n"
 
-        
+        # Кнопки
         webapp_url = f"{WEB_APP_DOMAIN}/webapp/index.html?mode=executor&user_id={assignee.id}"
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [
@@ -184,7 +260,7 @@ async def notify_assigned_user(bot: Bot, task_id: int, db: Session) -> bool:
             ]
         ])
 
-        
+        # Отправляем сообщение
         await bot.send_message(
             chat_id=assignee.telegram_id,
             text=notification,
@@ -355,20 +431,19 @@ async def handle_confirm_task(callback: CallbackQuery):
             await callback.answer("Задача уже обработана", show_alert=True)
             return
 
-        
-        assigned_user_id = None
-        if pending_task.assignee_username:
-            assignee = await get_or_create_user_by_username(db, pending_task.assignee_username)
-            assigned_user_id = assignee.id
+        # Определяем исполнителей (поддержка нового и старого формата)
+        assignee_usernames = pending_task.assignee_usernames or []
+        if not assignee_usernames and pending_task.assignee_username:
+            assignee_usernames = [pending_task.assignee_username]
 
-       
+        # Классифицируем задачу
         category_id = classify_task(pending_task.description or pending_task.title, db)
 
-        
+        # Создаем задачу
         task = Task(
             message_id=pending_task.message_id,
             category_id=category_id,
-            assigned_to=assigned_user_id,
+            created_by=pending_task.created_by_id,  # Сохраняем создателя
             title=pending_task.title,
             description=pending_task.description,
             status="pending",
@@ -380,26 +455,34 @@ async def handle_confirm_task(callback: CallbackQuery):
         db.commit()
         db.refresh(task)
 
-        
+        # Назначаем исполнителей (many-to-many)
+        if assignee_usernames:
+            for username in assignee_usernames:
+                assignee = await get_or_create_user_by_username(db, username)
+                task.assignees.append(assignee)
+            db.commit()
+
+        # Отмечаем pending task как подтвержденный
         pending_task.status = "confirmed"
         db.commit()
 
-        
-        if assigned_user_id:
-            
-            assignee = db.query(User).filter(User.id == assigned_user_id).first()
-            notification_sent = await notify_assigned_user(callback.bot, task.id, db)
+        # Уведомляем всех исполнителей
+        if task.assignees:
+            for assignee in task.assignees:
+                # Отправляем личное уведомление конкретному исполнителю
+                notification_sent = await notify_assigned_user(callback.bot, task.id, db, assignee=assignee)
 
-            if not notification_sent and assignee and pending_task.assignee_username:
-                try:
-                    await callback.bot.send_message(
-                        chat_id=pending_task.chat_id,
-                        text=f"@{pending_task.assignee_username}, вам назначена задача: <b>{task.title}</b>\n\n"
-                             f"❗ Для получения уведомлений начните чат с ботом: /start @taskbridgeprotobot",
-                        parse_mode="HTML"
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to send group notification: {e}")
+                # Если уведомление не отправлено (пользователь не начал чат с ботом)
+                if not notification_sent and assignee.username:
+                    try:
+                        await callback.bot.send_message(
+                            chat_id=pending_task.chat_id,
+                            text=f"@{assignee.username}, вам назначена задача: <b>{task.title}</b>\n\n"
+                                 f"❗ Для получения уведомлений начните чат с ботом: /start @taskbridgeprotobot",
+                            parse_mode="HTML"
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to send group notification: {e}")
 
         
         creator = db.query(User).filter(User.id == pending_task.created_by_id).first()
@@ -415,13 +498,26 @@ async def handle_confirm_task(callback: CallbackQuery):
             ]
         ])
 
-        
-        await callback.message.edit_text(
+        # Формируем текст с исполнителями
+        confirmation_msg = (
             f"✅ <b>Задача подтверждена и отправлена!</b>\n\n"
             f"<b>Задача:</b> {task.title}\n"
-            f"<b>Исполнитель:</b> @{pending_task.assignee_username if pending_task.assignee_username else 'не указан'}\n"
-            f"<b>Срок:</b> {task.due_date.strftime('%d.%m.%Y %H:%M') if task.due_date else 'не указан'}\n"
-            f"<b>Приоритет:</b> {task.priority}",
+        )
+
+        if task.assignees:
+            if len(task.assignees) == 1:
+                confirmation_msg += f"<b>Исполнитель:</b> @{task.assignees[0].username}\n"
+            else:
+                assignees_str = ", ".join([f"@{a.username}" for a in task.assignees if a.username])
+                confirmation_msg += f"<b>Исполнители:</b> {assignees_str}\n"
+        else:
+            confirmation_msg += f"<b>Исполнитель:</b> не указан\n"
+
+        confirmation_msg += f"<b>Срок:</b> {task.due_date.strftime('%d.%m.%Y %H:%M') if task.due_date else 'не указан'}\n"
+        confirmation_msg += f"<b>Приоритет:</b> {task.priority}"
+
+        await callback.message.edit_text(
+            confirmation_msg,
             reply_markup=manager_keyboard,
             parse_mode="HTML"
         )
@@ -560,30 +656,40 @@ async def handle_group_message(message: Message):
 
         task_data = ai_result.get("task", {})
 
-        
+        # Логируем данные от AI
         logger.info(f"Task data from AI: {task_data}")
-        logger.info(f"Assignee username from AI: {task_data.get('assignee_username')}")
 
-        
+        # Извлекаем список исполнителей (новый формат) или fallback на старый
+        assignee_usernames = task_data.get("assignee_usernames", [])
+        if not assignee_usernames:
+            # Fallback на старое поле для обратной совместимости
+            old_assignee = task_data.get("assignee_username")
+            if old_assignee:
+                assignee_usernames = [old_assignee]
+
+        logger.info(f"Assignee usernames from AI: {assignee_usernames}")
+
+        # Создаем pending task
         pending_task = PendingTask(
             message_id=message_obj.id,
             chat_id=message.chat.id,
             created_by_id=user.id,
             title=task_data.get("title", "Без названия"),
             description=task_data.get("description"),
-            assignee_username=task_data.get("assignee_username"),
+            assignee_usernames=assignee_usernames if assignee_usernames else None,
+            assignee_username=assignee_usernames[0] if assignee_usernames else None,  # Для обратной совместимости
             due_date=task_data.get("due_date_parsed"),
             priority=task_data.get("priority", "normal"),
             status="pending"
         )
 
-        logger.info(f"Created pending task with assignee: {pending_task.assignee_username}")
+        logger.info(f"Created pending task with assignees: {pending_task.assignee_usernames}")
 
         db.add(pending_task)
         db.commit()
         db.refresh(pending_task)
 
-        
+        # Формируем текст подтверждения
         confirmation_text = (
             f"🤖 <b>AI обнаружил задачу!</b>\n\n"
             f"<b>Задача:</b> {pending_task.title}\n"
@@ -592,7 +698,15 @@ async def handle_group_message(message: Message):
         if pending_task.description and pending_task.description != pending_task.title:
             confirmation_text += f"<b>Описание:</b> {pending_task.description}\n"
 
-        if pending_task.assignee_username:
+        # Показываем всех исполнителей
+        if pending_task.assignee_usernames:
+            if len(pending_task.assignee_usernames) == 1:
+                confirmation_text += f"<b>Исполнитель:</b> @{pending_task.assignee_usernames[0]}\n"
+            else:
+                assignees_str = ", ".join([f"@{u}" for u in pending_task.assignee_usernames])
+                confirmation_text += f"<b>Исполнители:</b> {assignees_str}\n"
+        elif pending_task.assignee_username:
+            # Fallback на старое поле
             confirmation_text += f"<b>Исполнитель:</b> @{pending_task.assignee_username}\n"
 
         if pending_task.due_date:
@@ -661,9 +775,11 @@ async def handle_file_upload(message: Message):
             db=db
         )
 
-        
-        active_tasks = db.query(Task).filter(
-            Task.assigned_to == user.id,
+        # Находим активные задачи пользователя (через many-to-many связь)
+        active_tasks = db.query(Task).join(
+            Task.assignees
+        ).filter(
+            User.id == user.id,
             Task.status == "in_progress"
         ).all()
 

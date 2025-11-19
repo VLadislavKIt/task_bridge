@@ -62,38 +62,54 @@ async def get_tasks(
     status: Optional[str] = None,
     category_id: Optional[int] = None,
     assigned_to: Optional[int] = None,
+    created_by: Optional[int] = None,
     db: Session = Depends(get_db)
 ):
     """
     Получить список задач
-    
+
     Параметры фильтрации:
     - status: Статус задачи (pending, in_progress, completed, cancelled)
     - category_id: ID категории
-    - assigned_to: ID исполнителя
+    - assigned_to: ID исполнителя (фильтр по одному из исполнителей)
+    - created_by: ID создателя задачи
     """
     query = db.query(Task)
-    
+
     if status:
         query = query.filter(Task.status == status)
     if category_id:
         query = query.filter(Task.category_id == category_id)
+    if created_by:
+        query = query.filter(Task.created_by == created_by)
     if assigned_to:
-        query = query.filter(Task.assigned_to == assigned_to)
-    
+        # Фильтруем по исполнителю через many-to-many связь
+        query = query.join(Task.assignees).filter(User.id == assigned_to)
+
     tasks = query.order_by(desc(Task.created_at)).all()
-    
+
     result = []
     for task in tasks:
-        assignee = None
-        if task.assignee:
-            assignee = {
-                "id": task.assignee.id,
-                "telegram_id": task.assignee.telegram_id,
-                "username": task.assignee.username,
-                "first_name": task.assignee.first_name
+        # Собираем всех исполнителей
+        assignees = []
+        for assignee in task.assignees:
+            assignees.append({
+                "id": assignee.id,
+                "telegram_id": assignee.telegram_id,
+                "username": assignee.username,
+                "first_name": assignee.first_name
+            })
+
+        # Создатель задачи
+        creator = None
+        if task.creator:
+            creator = {
+                "id": task.creator.id,
+                "telegram_id": task.creator.telegram_id,
+                "username": task.creator.username,
+                "first_name": task.creator.first_name
             }
-        
+
         category = None
         if task.category:
             category = {
@@ -102,7 +118,7 @@ async def get_tasks(
                 "description": task.category.description,
                 "keywords": task.category.keywords
             }
-        
+
         result.append({
             "id": task.id,
             "title": task.title,
@@ -112,10 +128,11 @@ async def get_tasks(
             "due_date": task.due_date.isoformat() if task.due_date else None,
             "created_at": task.created_at.isoformat(),
             "updated_at": task.updated_at.isoformat(),
-            "assignee": assignee,
+            "assignees": assignees,  # Множественные исполнители
+            "creator": creator,  # Создатель задачи
             "category": category
         })
-    
+
     return result
 
 
@@ -123,19 +140,30 @@ async def get_tasks(
 async def get_task(task_id: int, db: Session = Depends(get_db)):
     """Получить задачу по ID"""
     task = db.query(Task).filter(Task.id == task_id).first()
-    
+
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    
-    assignee = None
-    if task.assignee:
-        assignee = {
-            "id": task.assignee.id,
-            "telegram_id": task.assignee.telegram_id,
-            "username": task.assignee.username,
-            "first_name": task.assignee.first_name
+
+    # Собираем всех исполнителей
+    assignees = []
+    for assignee in task.assignees:
+        assignees.append({
+            "id": assignee.id,
+            "telegram_id": assignee.telegram_id,
+            "username": assignee.username,
+            "first_name": assignee.first_name
+        })
+
+    # Создатель задачи
+    creator = None
+    if task.creator:
+        creator = {
+            "id": task.creator.id,
+            "telegram_id": task.creator.telegram_id,
+            "username": task.creator.username,
+            "first_name": task.creator.first_name
         }
-    
+
     category = None
     if task.category:
         category = {
@@ -144,7 +172,7 @@ async def get_task(task_id: int, db: Session = Depends(get_db)):
             "description": task.category.description,
             "keywords": task.category.keywords
         }
-    
+
     return {
         "id": task.id,
         "title": task.title,
@@ -154,7 +182,8 @@ async def get_task(task_id: int, db: Session = Depends(get_db)):
         "due_date": task.due_date.isoformat() if task.due_date else None,
         "created_at": task.created_at.isoformat(),
         "updated_at": task.updated_at.isoformat(),
-        "assignee": assignee,
+        "assignees": assignees,  # Множественные исполнители
+        "creator": creator,  # Создатель задачи
         "category": category
     }
 
@@ -317,6 +346,17 @@ async def create_task_comment(task_id: int, comment_data: CommentCreate, db: Ses
     db.add(comment)
     db.commit()
     db.refresh(comment)
+
+    # Отправляем уведомления о новом комментарии
+    try:
+        from bot.notifications import notify_comment_added
+        import asyncio
+
+        # Запускаем отправку уведомлений в фоне
+        asyncio.create_task(notify_comment_added(task_id, comment_data.user_id, comment_data.text, db))
+    except Exception as e:
+        logger.error(f"Failed to send comment notifications: {e}")
+        # Не падаем, если уведомления не отправились
 
     return {
         "id": comment.id,

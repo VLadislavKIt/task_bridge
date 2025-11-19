@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, JSON, Table
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -6,8 +6,18 @@ from datetime import datetime
 Base = declarative_base()
 
 
+# Промежуточная таблица для связи многие-ко-многим между Task и User (исполнители)
+task_assignees = Table(
+    'task_assignees',
+    Base.metadata,
+    Column('task_id', Integer, ForeignKey('tasks.id', ondelete='CASCADE'), primary_key=True),
+    Column('user_id', Integer, ForeignKey('users.id', ondelete='CASCADE'), primary_key=True),
+    Column('assigned_at', DateTime, default=datetime.utcnow)
+)
+
+
 class User(Base):
-    
+
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True)
@@ -20,7 +30,8 @@ class User(Base):
 
     # Связи
     messages = relationship("Message", back_populates="user")
-    assigned_tasks = relationship("Task", foreign_keys="Task.assigned_to", back_populates="assignee")
+    assigned_tasks = relationship("Task", secondary=task_assignees, back_populates="assignees")
+    created_tasks = relationship("Task", foreign_keys="Task.created_by", back_populates="creator")
 
     def __repr__(self):
         return f"<User(telegram_id={self.telegram_id}, username={self.username})>"
@@ -71,7 +82,8 @@ class Task(Base):
     id = Column(Integer, primary_key=True)
     message_id = Column(Integer, ForeignKey("messages.id"), nullable=True)
     category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
-    assigned_to = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)  # Кто создал задачу
+    assigned_to = Column(Integer, ForeignKey("users.id"), nullable=True)  # DEPRECATED: используйте assignees
     title = Column(String(500), nullable=False)
     description = Column(Text, nullable=True)
     status = Column(String(50), default="pending")  # pending, in_progress, completed, cancelled
@@ -80,10 +92,13 @@ class Task(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    
+    # Связи
     message = relationship("Message", back_populates="tasks")
     category = relationship("Category", back_populates="tasks")
-    assignee = relationship("User", foreign_keys=[assigned_to], back_populates="assigned_tasks")
+    assignees = relationship("User", secondary=task_assignees, back_populates="assigned_tasks")  # Множественные исполнители
+    creator = relationship("User", foreign_keys=[created_by], back_populates="created_tasks")
+    files = relationship("TaskFile", backref="task", cascade="all, delete-orphan")
+    comments = relationship("Comment", backref="task", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Task(id={self.id}, title={self.title}, status={self.status})>"
@@ -98,14 +113,15 @@ class PendingTask(Base):
     chat_id = Column(Integer, nullable=False)  # ID группового чата
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # Кто написал сообщение
 
-    
+    # Данные задачи
     title = Column(String(500), nullable=False)
     description = Column(Text, nullable=True)
-    assignee_username = Column(String(255), nullable=True)
+    assignee_username = Column(String(255), nullable=True)  # DEPRECATED: один исполнитель
+    assignee_usernames = Column(JSON, nullable=True)  # Список username исполнителей ["user1", "user2"]
     due_date = Column(DateTime, nullable=True)
     priority = Column(String(50), default="normal")
 
-   
+    # Статус подтверждения
     status = Column(String(50), default="pending")  # pending, confirmed, rejected
     telegram_message_id = Column(Integer, nullable=True)  # ID сообщения с кнопками подтверждения
 
@@ -145,11 +161,14 @@ class Comment(Base):
     __tablename__ = "comments"
 
     id = Column(Integer, primary_key=True)
-    task_id = Column(Integer, ForeignKey("tasks.id"), nullable=False)
+    task_id = Column(Integer, ForeignKey("tasks.id", ondelete='CASCADE'), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     text = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+    # Связи
+    user = relationship("User", backref="comments")
+
     def __repr__(self):
-        return f"<Comment(id={self.id}, task_id={self.task_id})>"
+        return f"<Comment(id={self.id}, task_id={self.task_id}, user_id={self.user_id})>"

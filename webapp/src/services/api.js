@@ -66,4 +66,17 @@ export const getStats = async () => {
   return response.data
 }
 
+// Управление исполнителями
+export const addTaskAssignee = async (taskId, userId) => {
+  const response = await api.post(`/tasks/${taskId}/assignees`, {
+    user_id: userId
+  })
+  return response.data
+}
+
+export const removeTaskAssignee = async (taskId, userId) => {
+  const response = await api.delete(`/tasks/${taskId}/assignees/${userId}`)
+  return response.data
+}
+
 export default api

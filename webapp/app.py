@@ -300,6 +300,10 @@ class CommentCreate(BaseModel):
     user_id: int
 
 
+class AssigneeUpdate(BaseModel):
+    user_id: int
+
+
 @app.get("/api/tasks/{task_id}/comments", response_model=List[dict])
 async def get_task_comments(task_id: int, db: Session = Depends(get_db)):
     """Получить список комментариев задачи"""
@@ -368,3 +372,62 @@ async def create_task_comment(task_id: int, comment_data: CommentCreate, db: Ses
             "first_name": user.first_name
         }
     }
+
+
+@app.post("/api/tasks/{task_id}/assignees")
+async def add_task_assignee(task_id: int, assignee_data: AssigneeUpdate, db: Session = Depends(get_db)):
+    """Добавить исполнителя к задаче"""
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    user = db.query(User).filter(User.id == assignee_data.user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Проверяем, не назначен ли уже этот пользователь
+    if user in task.assignees:
+        raise HTTPException(status_code=400, detail="User already assigned to this task")
+
+    # Добавляем исполнителя
+    task.assignees.append(user)
+    db.commit()
+
+    # Отправляем уведомление новому исполнителю
+    try:
+        from bot.handlers import notify_assigned_user
+        from bot.main import bot
+        import asyncio
+
+        asyncio.create_task(notify_assigned_user(bot, task_id, db, assignee=user))
+    except Exception as e:
+        logger.error(f"Failed to send assignment notification: {e}")
+
+    return {
+        "id": user.id,
+        "username": user.username,
+        "first_name": user.first_name,
+        "message": "Assignee added successfully"
+    }
+
+
+@app.delete("/api/tasks/{task_id}/assignees/{user_id}")
+async def remove_task_assignee(task_id: int, user_id: int, db: Session = Depends(get_db)):
+    """Удалить исполнителя из задачи"""
+    task = db.query(Task).filter(Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Проверяем, назначен ли этот пользователь
+    if user not in task.assignees:
+        raise HTTPException(status_code=400, detail="User is not assigned to this task")
+
+    # Удаляем исполнителя
+    task.assignees.remove(user)
+    db.commit()
+
+    return {"message": "Assignee removed successfully"}

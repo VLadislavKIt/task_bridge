@@ -34,4 +34,5 @@ Thumbs.db
 node_modules/
 webapp/dist/
 webapp/node_modules/
+webapp/index.html.vite
 

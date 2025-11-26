@@ -21,26 +21,29 @@ webapp_dir = Path(__file__).parent.resolve()
 dist_dir = webapp_dir / "dist"
 index_html_path = dist_dir / "index.html"
 
-# Fallback: если dist нет, пробуем старый index.html
-if not dist_dir.exists() or not index_html_path.exists():
-    logger.warning(f"Dist directory not found at {dist_dir}, trying fallback to index.html")
-    index_html_path = webapp_dir / "index.html"
-    dist_dir = None
-
 logger.info(f"Current working directory: {Path.cwd()}")
 logger.info(f"Webapp directory: {webapp_dir}")
 logger.info(f"Dist directory: {dist_dir}")
 logger.info(f"Index.html path: {index_html_path}")
 logger.info(f"Index.html exists: {index_html_path.exists()}")
 
+# Проверяем что React приложение собрано
+if not dist_dir.exists() or not index_html_path.exists():
+    logger.error(f"React app not built! Please run 'npm run build' in webapp/ directory")
+    logger.error(f"Expected dist directory at: {dist_dir}")
+    logger.error(f"Expected index.html at: {index_html_path}")
+    raise RuntimeError(
+        "React application not built. Please run 'cd webapp && npm install && npm run build'"
+    )
+
 # Mount static files (React assets)
-if dist_dir and dist_dir.exists():
-    assets_dir = dist_dir / "assets"
-    if assets_dir.exists():
-        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
-        logger.info(f"Mounted assets directory: {assets_dir}")
-    else:
-        logger.warning(f"Assets directory not found at {assets_dir}")
+assets_dir = dist_dir / "assets"
+if assets_dir.exists():
+    app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+    logger.info(f"✓ Mounted assets directory: {assets_dir}")
+else:
+    logger.error(f"Assets directory not found at {assets_dir}")
+    raise RuntimeError(f"React assets not found at {assets_dir}")
 
 
 @app.get("/", response_class=HTMLResponse)

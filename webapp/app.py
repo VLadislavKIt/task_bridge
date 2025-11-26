@@ -16,30 +16,49 @@ app = FastAPI(title="TaskBridge API")
 import logging
 logger = logging.getLogger(__name__)
 
-webapp_dir = Path(__file__).parent
+# Определяем пути к файлам
+webapp_dir = Path(__file__).parent.resolve()
 dist_dir = webapp_dir / "dist"
 index_html_path = dist_dir / "index.html"
 
+# Fallback: если dist нет, пробуем старый index.html
+if not dist_dir.exists() or not index_html_path.exists():
+    logger.warning(f"Dist directory not found at {dist_dir}, trying fallback to index.html")
+    index_html_path = webapp_dir / "index.html"
+    dist_dir = None
+
+logger.info(f"Current working directory: {Path.cwd()}")
 logger.info(f"Webapp directory: {webapp_dir}")
 logger.info(f"Dist directory: {dist_dir}")
 logger.info(f"Index.html path: {index_html_path}")
 logger.info(f"Index.html exists: {index_html_path.exists()}")
 
 # Mount static files (React assets)
-if dist_dir.exists():
+if dist_dir and dist_dir.exists():
     assets_dir = dist_dir / "assets"
     if assets_dir.exists():
         app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
         logger.info(f"Mounted assets directory: {assets_dir}")
+    else:
+        logger.warning(f"Assets directory not found at {assets_dir}")
 
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
     """Главная страница - показываем index.html из dist"""
+    logger.info(f"GET / - Attempting to serve index.html")
+    logger.info(f"index_html_path: {index_html_path}")
+    logger.info(f"index_html_path.exists(): {index_html_path.exists()}")
+    logger.info(f"index_html_path.is_file(): {index_html_path.is_file() if index_html_path.exists() else 'N/A'}")
+
     if not index_html_path.exists():
         logger.error(f"index.html NOT FOUND at {index_html_path}")
+        logger.error(f"Available files in {webapp_dir}: {list(webapp_dir.glob('*'))}")
+        if dist_dir:
+            logger.error(f"Available files in {dist_dir}: {list(dist_dir.glob('*')) if dist_dir.exists() else 'Directory does not exist'}")
         raise HTTPException(status_code=404, detail=f"index.html not found at {index_html_path}")
-    logger.info(f"Serving index.html from {index_html_path}")
+
+    logger.info(f"Successfully serving index.html from {index_html_path}")
     return FileResponse(str(index_html_path))
 
 

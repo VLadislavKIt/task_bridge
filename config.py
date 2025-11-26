@@ -39,7 +39,8 @@ OPENAI_TEMPERATURE = float(os.getenv("OPENAI_TEMPERATURE", "0.3"))
 
 OPENAI_MAX_TOKENS = int(os.getenv("OPENAI_MAX_TOKENS", "500"))
 
-
+# Database
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///taskbridge.db")
 
 
 TASK_KEYWORDS = [

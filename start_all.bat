@@ -10,6 +10,18 @@ if not exist "venv\Scripts\activate.bat" (
     exit /b 1
 )
 
+REM Проверка React сборки
+if not exist "webapp\dist\index.html" (
+    echo WARNING: React app not built!
+    echo Building React application...
+    cd webapp
+    call npm install
+    call npm run build
+    cd ..
+    echo React app built successfully!
+    echo.
+)
+
 REM Активация виртуального окружения
 call venv\Scripts\activate.bat
 

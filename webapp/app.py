@@ -13,22 +13,29 @@ from pathlib import Path
 
 app = FastAPI(title="TaskBridge API")
 
-
-
-webapp_dir = Path(__file__).parent
-index_html_path = webapp_dir / "index.html"
-
-
 import logging
 logger = logging.getLogger(__name__)
+
+webapp_dir = Path(__file__).parent
+dist_dir = webapp_dir / "dist"
+index_html_path = dist_dir / "index.html"
+
 logger.info(f"Webapp directory: {webapp_dir}")
+logger.info(f"Dist directory: {dist_dir}")
 logger.info(f"Index.html path: {index_html_path}")
 logger.info(f"Index.html exists: {index_html_path.exists()}")
+
+# Mount static files (React assets)
+if dist_dir.exists():
+    assets_dir = dist_dir / "assets"
+    if assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+        logger.info(f"Mounted assets directory: {assets_dir}")
 
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
-    """Главная страница - показываем index.html"""
+    """Главная страница - показываем index.html из dist"""
     if not index_html_path.exists():
         logger.error(f"index.html NOT FOUND at {index_html_path}")
         raise HTTPException(status_code=404, detail=f"index.html not found at {index_html_path}")

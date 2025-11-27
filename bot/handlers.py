@@ -295,13 +295,43 @@ async def cmd_start(message: Message):
             db=db
         )
 
-        
+        # Обновляем telegram_id если пользователь ранее был создан по username
         if user.telegram_id == -1 or user.telegram_id != message.from_user.id:
             user.telegram_id = message.from_user.id
             db.commit()
             logger.info(f"Updated telegram_id for user @{user.username} (ID: {user.id})")
 
-        
+        # Проверяем незавершенные задачи пользователя
+        pending_tasks = db.query(Task).join(Task.assignees).filter(
+            User.id == user.id,
+            Task.status.in_(["pending", "in_progress"])
+        ).all()
+
+        # Отправляем уведомления о незавершенных задачах
+        if pending_tasks:
+            for task in pending_tasks:
+                task_webapp_url = f"{WEB_APP_DOMAIN}/webapp/index.html?mode=executor&user_id={user.id}&task_id={task.id}"
+                task_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [
+                        InlineKeyboardButton(
+                            text="📱 Открыть задачу",
+                            web_app=WebAppInfo(url=task_webapp_url)
+                        )
+                    ]
+                ])
+
+                notification = (
+                    f"📋 <b>У вас есть незавершенная задача</b>\n\n"
+                    f"<b>{task.title}</b>\n"
+                    f"Статус: {task.status}\n"
+                    f"Приоритет: {task.priority}\n"
+                )
+
+                if task.due_date:
+                    notification += f"Срок: {task.due_date.strftime('%d.%m.%Y %H:%M')}\n"
+
+                await message.answer(notification, reply_markup=task_keyboard, parse_mode="HTML")
+
         webapp_url = f"{WEB_APP_DOMAIN}/webapp/index.html?mode=executor&user_id={user.id}"
 
         welcome_message = (
@@ -310,7 +340,12 @@ async def cmd_start(message: Message):
             "Добавьте меня в групповой чат, чтобы я начал анализировать сообщения."
         )
 
-        
+        if pending_tasks:
+            welcome_message = (
+                f"✅ С возвращением! У вас {len(pending_tasks)} незавершенных задач.\n\n"
+                "Используйте кнопку ниже для доступа к панели задач."
+            )
+
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [
                 InlineKeyboardButton(
@@ -329,6 +364,42 @@ async def cmd_start(message: Message):
         db.close()
 
 
+@router.message(Command("panel"))
+async def cmd_panel(message: Message):
+    """Обработчик команды /panel - открыть панель задач"""
+    db = get_db_session()
+
+    try:
+        user = await get_or_create_user(
+            bot=message.bot,
+            telegram_id=message.from_user.id,
+            username=message.from_user.username,
+            first_name=message.from_user.first_name,
+            last_name=message.from_user.last_name,
+            is_bot=message.from_user.is_bot,
+            db=db
+        )
+
+        webapp_url = f"{WEB_APP_DOMAIN}/webapp/index.html?mode=executor&user_id={user.id}"
+
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="📱 Открыть панель задач",
+                    web_app=WebAppInfo(url=webapp_url)
+                )
+            ]
+        ])
+
+        await message.answer("Нажмите кнопку ниже для доступа к панели задач:", reply_markup=keyboard)
+
+    except Exception as e:
+        logger.error(f"Error in /panel command: {e}", exc_info=True)
+        await message.answer("Произошла ошибка. Попробуйте позже.")
+    finally:
+        db.close()
+
+
 @router.message(Command("help"))
 async def cmd_help(message: Message):
     """Обработчик команды /help"""
@@ -336,6 +407,7 @@ async def cmd_help(message: Message):
         "📋 <b>TaskBridge - AI-управление задачами</b>\n\n"
         "<b>Команды:</b>\n"
         "/start - Начать работу и открыть панель задач\n"
+        "/panel - Открыть панель задач\n"
         "/help - Показать справку\n\n"
         "<b>Как использовать:</b>\n"
         "1. Добавьте бота в групповой чат\n"
@@ -483,8 +555,7 @@ async def handle_confirm_task(callback: CallbackQuery):
                     try:
                         await callback.bot.send_message(
                             chat_id=pending_task.chat_id,
-                            text=f"@{assignee.username}, вам назначена задача: <b>{task.title}</b>\n\n"
-                                 f"❗ Для получения уведомлений начните чат с ботом: /start @taskbridgeprotobot",
+                            text=f"@{assignee.username}, вам назначена задача: <b>{task.title}</b>\n\n",
                             parse_mode="HTML"
                         )
                     except Exception as e:

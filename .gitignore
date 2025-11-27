@@ -36,3 +36,11 @@ webapp/dist/
 webapp/node_modules/
 webapp/index.html.vite
 
+# macOS/Linux
+.bot.pid
+.webapp.pid
+*.pid
+nohup.out
+bot.log
+webapp.log
+

@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react'
-import { ManagerMode } from './components/ManagerMode'
-import { ExecutorMode } from './components/ExecutorMode'
+import { TasksApp } from './components/TasksApp'
 import { getTelegramParams } from './utils/telegram'
 
 function App() {
-  const [mode, setMode] = useState('executor')
   const [userId, setUserId] = useState(null)
   const [taskId, setTaskId] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -13,7 +11,6 @@ function App() {
     // Получаем параметры из URL (Telegram WebApp)
     const params = getTelegramParams()
 
-    setMode(params.mode || 'executor')
     setUserId(params.user_id ? parseInt(params.user_id) : null)
     setTaskId(params.task_id ? parseInt(params.task_id) : null)
     setLoading(false)
@@ -31,6 +28,15 @@ function App() {
       document.documentElement.style.setProperty('--tg-theme-link-color', tg.themeParams.link_color || '#2481cc')
       document.documentElement.style.setProperty('--tg-theme-button-color', tg.themeParams.button_color || '#2481cc')
       document.documentElement.style.setProperty('--tg-theme-button-text-color', tg.themeParams.button_text_color || '#ffffff')
+      document.documentElement.style.setProperty('--tg-theme-secondary-bg-color', tg.themeParams.secondary_bg_color || '#f4f4f5')
+
+      // Определяем темную тему и применяем класс
+      const isDark = tg.colorScheme === 'dark'
+      if (isDark) {
+        document.body.classList.add('dark-theme')
+      } else {
+        document.body.classList.remove('dark-theme')
+      }
     }
   }, [])
 
@@ -54,11 +60,7 @@ function App() {
 
   return (
     <div className="app">
-      {mode === 'manager' ? (
-        <ManagerMode userId={userId} />
-      ) : (
-        <ExecutorMode userId={userId} taskId={taskId} />
-      )}
+      <TasksApp userId={userId} taskId={taskId} />
     </div>
   )
 }

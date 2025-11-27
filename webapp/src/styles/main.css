@@ -1,17 +1,30 @@
 :root {
+  /* Telegram theme colors (переопределяются из Telegram) */
   --tg-theme-bg-color: #ffffff;
   --tg-theme-text-color: #000000;
   --tg-theme-hint-color: #999999;
   --tg-theme-link-color: #2481cc;
   --tg-theme-button-color: #2481cc;
   --tg-theme-button-text-color: #ffffff;
+  --tg-theme-secondary-bg-color: #f4f4f5;
 
+  /* App colors */
   --color-primary: #2481cc;
   --color-success: #198754;
   --color-warning: #ffc107;
   --color-danger: #dc3545;
   --color-info: #0dcaf0;
   --color-gray: #6c757d;
+
+  /* Adaptive colors для светлой темы */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-elevated: #ffffff;
+  --text-primary: #000000;
+  --text-secondary: #6c757d;
+  --text-hint: #999999;
+  --border-color: #e0e0e0;
+  --shadow-color: rgba(0, 0, 0, 0.1);
 
   --spacing-xs: 4px;
   --spacing-sm: 8px;
@@ -21,8 +34,34 @@
 
   --border-radius: 12px;
   --border-radius-sm: 8px;
-  --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.15);
+  --shadow: 0 2px 8px var(--shadow-color);
+  --shadow-lg: 0 4px 16px var(--shadow-color);
+}
+
+/* Dark theme support */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-primary: #1a1a1a;
+    --bg-secondary: #2a2a2a;
+    --bg-elevated: #2f2f2f;
+    --text-primary: #ffffff;
+    --text-secondary: #b0b0b0;
+    --text-hint: #808080;
+    --border-color: #3a3a3a;
+    --shadow-color: rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* Telegram dark theme (приоритет выше чем prefers-color-scheme) */
+body.dark-theme {
+  --bg-primary: var(--tg-theme-bg-color, #1a1a1a);
+  --bg-secondary: var(--tg-theme-secondary-bg-color, #2a2a2a);
+  --bg-elevated: #2f2f2f;
+  --text-primary: var(--tg-theme-text-color, #ffffff);
+  --text-secondary: #b0b0b0;
+  --text-hint: var(--tg-theme-hint-color, #808080);
+  --border-color: #3a3a3a;
+  --shadow-color: rgba(0, 0, 0, 0.5);
 }
 
 * {
@@ -37,8 +76,8 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: var(--tg-theme-bg-color);
-  color: var(--tg-theme-text-color);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
   line-height: 1.6;
 }
 
@@ -172,10 +211,10 @@ body {
 
 .filter-group select {
   padding: var(--spacing-sm) var(--spacing-md);
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: var(--border-radius-sm);
   font-size: 14px;
-  background-color: white;
+  background-color: var(--bg-elevated);
   cursor: pointer;
 }
 
@@ -212,7 +251,7 @@ body {
 }
 
 .task-card {
-  background: white;
+  background: var(--bg-elevated);
   border-radius: var(--border-radius);
   padding: var(--spacing-md);
   box-shadow: var(--shadow);
@@ -424,7 +463,7 @@ body {
 .task-actions-section,
 .task-files-section,
 .task-comments-section {
-  background: white;
+  background: var(--bg-elevated);
   border-radius: var(--border-radius);
   padding: var(--spacing-md);
   box-shadow: var(--shadow);
@@ -549,7 +588,7 @@ body {
 }
 
 .modal-content {
-  background: white;
+  background: var(--bg-elevated);
   border-radius: var(--border-radius);
   padding: var(--spacing-lg);
   max-width: 400px;
@@ -687,7 +726,7 @@ body {
 .add-comment textarea {
   width: 100%;
   padding: var(--spacing-md);
-  border: 1px solid #ddd;
+  border: 1px solid var(--border-color);
   border-radius: var(--border-radius-sm);
   font-size: 14px;
   font-family: inherit;

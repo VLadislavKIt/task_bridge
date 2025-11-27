@@ -439,6 +439,12 @@ async def handle_confirm_task(callback: CallbackQuery):
         # Классифицируем задачу
         category_id = classify_task(pending_task.description or pending_task.title, db)
 
+        # Если дедлайн не указан, ставим +24 часа от текущего времени
+        due_date = pending_task.due_date
+        if not due_date:
+            from datetime import datetime, timedelta
+            due_date = datetime.now() + timedelta(hours=24)
+
         # Создаем задачу
         task = Task(
             message_id=pending_task.message_id,
@@ -448,7 +454,7 @@ async def handle_confirm_task(callback: CallbackQuery):
             description=pending_task.description,
             status="pending",
             priority=pending_task.priority,
-            due_date=pending_task.due_date
+            due_date=due_date
         )
 
         db.add(task)

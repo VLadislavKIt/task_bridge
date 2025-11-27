@@ -274,12 +274,30 @@ async def get_users(db: Session = Depends(get_db)):
 
 
 @app.get("/api/stats", response_model=dict)
-async def get_stats(db: Session = Depends(get_db)):
-    """Получить статистику"""
-    total_tasks = db.query(func.count(Task.id)).scalar()
-    pending_tasks = db.query(func.count(Task.id)).filter(Task.status == "pending").scalar()
-    in_progress_tasks = db.query(func.count(Task.id)).filter(Task.status == "in_progress").scalar()
-    completed_tasks = db.query(func.count(Task.id)).filter(Task.status == "completed").scalar()
+async def get_stats(
+    created_by: Optional[int] = None,
+    assigned_to: Optional[int] = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Получить статистику задач
+
+    Параметры:
+    - created_by: ID создателя (для вкладки "Назначенные мной")
+    - assigned_to: ID исполнителя (для вкладки "Мои задачи")
+    """
+    query = db.query(Task)
+
+    # Фильтруем по создателю или исполнителю
+    if created_by:
+        query = query.filter(Task.created_by == created_by)
+    elif assigned_to:
+        query = query.join(Task.assignees).filter(User.id == assigned_to)
+
+    total_tasks = query.count()
+    pending_tasks = query.filter(Task.status == "pending").count()
+    in_progress_tasks = query.filter(Task.status == "in_progress").count()
+    completed_tasks = query.filter(Task.status == "completed").count()
     total_users = db.query(func.count(User.id)).filter(User.is_bot == False).scalar()
 
     return {

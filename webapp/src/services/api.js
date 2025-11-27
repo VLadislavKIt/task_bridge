@@ -61,8 +61,8 @@ export const getUsers = async () => {
 }
 
 // Статистика
-export const getStats = async () => {
-  const response = await api.get('/stats')
+export const getStats = async (params = {}) => {
+  const response = await api.get('/stats', { params })
   return response.data
 }
 

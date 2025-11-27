@@ -3,7 +3,11 @@ import re
 from typing import List, Optional
 from datetime import datetime
 from aiogram import Bot, Router, F
-from aiogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery, PhotoSize, Document
+from aiogram.types import (
+    Message, InlineKeyboardButton, InlineKeyboardMarkup,
+    CallbackQuery, PhotoSize, Document, WebAppInfo,
+    ReplyKeyboardMarkup, KeyboardButton
+)
 from aiogram.filters import Command
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from sqlalchemy.orm import Session
@@ -12,7 +16,6 @@ from config import TASK_KEYWORDS, MINI_APP_URL, HOST, PORT, WEB_APP_DOMAIN
 from db.models import User, Message as MessageModel, Task, Category, PendingTask, TaskFile
 from db.database import get_db_session
 from bot.ai_extractor import analyze_message
-from aiogram.types import WebAppInfo
 
 logger = logging.getLogger(__name__)
 
@@ -295,8 +298,11 @@ async def cmd_start(message: Message):
             db=db
         )
 
+        # Флаг первой авторизации - если пользователь был создан по username без telegram_id
+        is_first_auth = (user.telegram_id == -1 or user.telegram_id != message.from_user.id)
+
         # Обновляем telegram_id если пользователь ранее был создан по username
-        if user.telegram_id == -1 or user.telegram_id != message.from_user.id:
+        if is_first_auth:
             user.telegram_id = message.from_user.id
             db.commit()
             logger.info(f"Updated telegram_id for user @{user.username} (ID: {user.id})")
@@ -334,19 +340,27 @@ async def cmd_start(message: Message):
 
         webapp_url = f"{WEB_APP_DOMAIN}/webapp/index.html?mode=executor&user_id={user.id}"
 
-        welcome_message = (
-            "✅ Отлично! Теперь вы будете получать уведомления о задачах.\n\n"
-            "🤖 TaskBridge использует AI для автоматического извлечения задач из чатов.\n\n"
-            "Добавьте меня в групповой чат, чтобы я начал анализировать сообщения."
-        )
-
-        if pending_tasks:
+        # Формируем приветственное сообщение
+        if is_first_auth and pending_tasks:
+            welcome_message = (
+                f"✅ Добро пожаловать! Вам было назначено {len(pending_tasks)} задач.\n\n"
+                "Вы можете открыть панель задач через кнопку ниже или использовать постоянную кнопку над клавиатурой."
+            )
+        elif pending_tasks:
             welcome_message = (
                 f"✅ С возвращением! У вас {len(pending_tasks)} незавершенных задач.\n\n"
-                "Используйте кнопку ниже для доступа к панели задач."
+                "Используйте кнопку ниже или постоянную кнопку для доступа к панели задач."
+            )
+        else:
+            welcome_message = (
+                "✅ Отлично! Теперь вы будете получать уведомления о задачах.\n\n"
+                "🤖 TaskBridge использует AI для автоматического извлечения задач из чатов.\n\n"
+                "Добавьте меня в групповой чат, чтобы я начал анализировать сообщения.\n\n"
+                "Используйте кнопку \"📱 Панель задач\" для быстрого доступа к вашим задачам."
             )
 
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        # Inline кнопка для одноразового использования
+        inline_keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [
                 InlineKeyboardButton(
                     text="📱 Открыть мою панель задач",
@@ -355,7 +369,31 @@ async def cmd_start(message: Message):
             ]
         ])
 
-        await message.answer(welcome_message, reply_markup=keyboard, parse_mode="HTML")
+        # Постоянная клавиатура с кнопкой быстрого доступа
+        reply_keyboard = ReplyKeyboardMarkup(
+            keyboard=[
+                [
+                    KeyboardButton(
+                        text="📱 Панель задач",
+                        web_app=WebAppInfo(url=webapp_url)
+                    )
+                ]
+            ],
+            resize_keyboard=True,
+            persistent=True
+        )
+
+        await message.answer(
+            welcome_message,
+            reply_markup=inline_keyboard,
+            parse_mode="HTML"
+        )
+
+        # Отправляем отдельное сообщение с постоянной клавиатурой
+        await message.answer(
+            "Используйте кнопку ниже для быстрого доступа:",
+            reply_markup=reply_keyboard
+        )
 
     except Exception as e:
         logger.error(f"Error in /start command: {e}", exc_info=True)

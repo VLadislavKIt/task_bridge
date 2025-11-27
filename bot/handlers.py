@@ -498,7 +498,7 @@ async def handle_confirm_task(callback: CallbackQuery):
         manager_keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [
                 InlineKeyboardButton(
-                    text="📊 Открыть панель управления",
+                    text="📱 Открыть панель управления",
                     web_app=WebAppInfo(url=webapp_url)
                 )
             ]

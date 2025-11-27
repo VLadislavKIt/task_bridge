@@ -79,4 +79,9 @@ export const removeTaskAssignee = async (taskId, userId) => {
   return response.data
 }
 
+export const deleteTask = async (taskId) => {
+  const response = await api.delete(`/tasks/${taskId}`)
+  return response.data
+}
+
 export default api

@@ -305,23 +305,56 @@ body {
 }
 
 .priority-low {
-  background-color: #e7f3ff;
+  background-color: rgba(0, 102, 204, 0.15);
   color: #0066cc;
 }
 
 .priority-normal {
-  background-color: #e8f5e9;
+  background-color: rgba(46, 125, 50, 0.15);
   color: #2e7d32;
 }
 
 .priority-high {
-  background-color: #fff3e0;
+  background-color: rgba(230, 81, 0, 0.15);
   color: #e65100;
 }
 
 .priority-urgent {
-  background-color: #ffebee;
+  background-color: rgba(198, 40, 40, 0.15);
   color: #c62828;
+}
+
+/* Dark theme adjustments for priority badges */
+body.dark-theme .priority-low,
+@media (prefers-color-scheme: dark) {
+  :root .priority-low {
+    background-color: rgba(0, 102, 204, 0.25);
+    color: #6bb6ff;
+  }
+}
+
+body.dark-theme .priority-normal,
+@media (prefers-color-scheme: dark) {
+  :root .priority-normal {
+    background-color: rgba(46, 125, 50, 0.25);
+    color: #81c784;
+  }
+}
+
+body.dark-theme .priority-high,
+@media (prefers-color-scheme: dark) {
+  :root .priority-high {
+    background-color: rgba(230, 81, 0, 0.25);
+    color: #ffb74d;
+  }
+}
+
+body.dark-theme .priority-urgent,
+@media (prefers-color-scheme: dark) {
+  :root .priority-urgent {
+    background-color: rgba(198, 40, 40, 0.25);
+    color: #ef5350;
+  }
 }
 
 .task-description {
@@ -350,15 +383,24 @@ body {
 
 .assignee-badge {
   padding: 4px 10px;
-  background-color: #f0f0f0;
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
   border-radius: 12px;
   font-size: 12px;
   font-weight: 500;
 }
 
 .assignee-badge.unassigned {
-  background-color: #ffebee;
+  background-color: rgba(198, 40, 40, 0.15);
   color: #c62828;
+}
+
+body.dark-theme .assignee-badge.unassigned,
+@media (prefers-color-scheme: dark) {
+  :root .assignee-badge.unassigned {
+    background-color: rgba(198, 40, 40, 0.25);
+    color: #ef5350;
+  }
 }
 
 .task-info {
@@ -544,12 +586,13 @@ body {
   justify-content: space-between;
   align-items: center;
   padding: var(--spacing-sm) var(--spacing-md);
-  background-color: #f8f9fa;
+  background-color: var(--bg-secondary);
   border-radius: var(--border-radius-sm);
 }
 
 .assignee-name {
   font-weight: 500;
+  color: var(--text-primary);
 }
 
 .remove-assignee-button {
@@ -655,6 +698,40 @@ body {
 
 .status-action-button:hover {
   opacity: 0.9;
+}
+
+/* Task Danger Zone */
+.task-danger-section {
+  background: var(--bg-elevated);
+  border-radius: var(--border-radius);
+  padding: var(--spacing-md);
+  margin-top: var(--spacing-md);
+  border: 1px solid rgba(198, 40, 40, 0.2);
+}
+
+.delete-task-button {
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-lg);
+  background-color: var(--color-danger);
+  color: white;
+  border: none;
+  border-radius: var(--border-radius-sm);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+}
+
+.delete-task-button:hover {
+  opacity: 0.85;
+}
+
+.delete-task-button:active {
+  opacity: 0.7;
 }
 
 /* Files */

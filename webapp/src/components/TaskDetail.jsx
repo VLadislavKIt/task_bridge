@@ -7,7 +7,8 @@ import {
   getTaskFiles,
   getUsers,
   addTaskAssignee,
-  removeTaskAssignee
+  removeTaskAssignee,
+  deleteTask
 } from '../services/api'
 import { formatDate, getStatusText, getPriorityText, getPriorityColor, getStatusColor } from '../utils/format'
 import { showTelegramAlert, showTelegramConfirm } from '../utils/telegram'
@@ -99,20 +100,47 @@ export function TaskDetail({ task: initialTask, onBack, isManager }) {
     })
   }
 
-  const statusActions = {
-    pending: [
+  async function handleDeleteTask() {
+    showTelegramConfirm('Вы точно хотите удалить эту задачу?', async (confirmed) => {
+      if (!confirmed) return
+
+      try {
+        await deleteTask(task.id)
+        showTelegramAlert('Задача удалена')
+        onBack() // Возвращаемся к списку задач
+      } catch (err) {
+        console.error('Error deleting task:', err)
+        showTelegramAlert('Ошибка удаления задачи')
+      }
+    })
+  }
+
+  // Определяем доступные действия в зависимости от роли
+  const statusActions = {}
+
+  if (isManager) {
+    // Создатель задачи может делать всё
+    statusActions.pending = [
       { status: 'in_progress', label: 'Начать работу', color: '#0dcaf0' },
       { status: 'cancelled', label: 'Отменить', color: '#6c757d' }
-    ],
-    in_progress: [
+    ]
+    statusActions.in_progress = [
       { status: 'completed', label: 'Завершить', color: '#198754' },
       { status: 'pending', label: 'Вернуть в ожидание', color: '#ffc107' }
-    ],
-    completed: [
+    ]
+    statusActions.completed = [
       { status: 'in_progress', label: 'Возобновить', color: '#0dcaf0' }
-    ],
-    cancelled: [
+    ]
+    statusActions.cancelled = [
       { status: 'pending', label: 'Восстановить', color: '#ffc107' }
+    ]
+  } else {
+    // Исполнитель может только начать работу и завершить
+    statusActions.pending = [
+      { status: 'in_progress', label: 'Начать работу', color: '#0dcaf0' }
+    ]
+    statusActions.in_progress = [
+      { status: 'completed', label: 'Завершить', color: '#198754' }
     ]
   }
 
@@ -263,6 +291,18 @@ export function TaskDetail({ task: initialTask, onBack, isManager }) {
                 </button>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Кнопка удаления задачи - только для создателя */}
+        {isManager && (
+          <div className="task-danger-section">
+            <button
+              className="delete-task-button"
+              onClick={handleDeleteTask}
+            >
+              🗑️ Удалить задачу
+            </button>
           </div>
         )}
 

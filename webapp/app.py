@@ -221,17 +221,31 @@ async def get_task(task_id: int, db: Session = Depends(get_db)):
 async def update_task_status(task_id: int, status: str, db: Session = Depends(get_db)):
     """Обновить статус задачи"""
     task = db.query(Task).filter(Task.id == task_id).first()
-    
+
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
-    
+
     if status not in ["pending", "in_progress", "completed", "cancelled"]:
         raise HTTPException(status_code=400, detail="Invalid status")
-    
+
     task.status = status
     db.commit()
-    
+
     return {"id": task.id, "status": task.status}
+
+
+@app.delete("/api/tasks/{task_id}")
+async def delete_task(task_id: int, db: Session = Depends(get_db)):
+    """Удалить задачу"""
+    task = db.query(Task).filter(Task.id == task_id).first()
+
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    db.delete(task)
+    db.commit()
+
+    return {"message": "Task deleted successfully"}
 
 
 @app.get("/api/categories", response_model=List[dict])

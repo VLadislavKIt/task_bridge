@@ -172,3 +172,77 @@ class Comment(Base):
 
     def __repr__(self):
         return f"<Comment(id={self.id}, task_id={self.task_id}, user_id={self.user_id})>"
+
+
+class EmailAccount(Base):
+    """Модель email аккаунта для IMAP интеграции"""
+    __tablename__ = "email_accounts"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete='CASCADE'), nullable=False)
+    email_address = Column(String(255), nullable=False, unique=True)
+
+    # IMAP настройки
+    imap_server = Column(String(255), nullable=False)
+    imap_port = Column(Integer, default=993)
+    imap_username = Column(String(255), nullable=False)
+    imap_password_encrypted = Column(Text, nullable=False)  # Зашифрованный пароль
+    use_ssl = Column(Boolean, default=True)
+
+    # Настройки обработки
+    folder = Column(String(100), default="INBOX")
+    is_active = Column(Boolean, default=True)
+    last_checked = Column(DateTime, nullable=True)
+    last_uid = Column(Integer, default=0)  # Последний обработанный UID
+
+    # Фильтры
+    only_from_addresses = Column(JSON, nullable=True)  # Список разрешенных отправителей
+    subject_keywords = Column(JSON, nullable=True)  # Ключевые слова в теме
+    auto_confirm = Column(Boolean, default=False)  # Автоматическое подтверждение задач
+
+    # Метаданные
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Связи
+    user = relationship("User", backref="email_accounts")
+    email_messages = relationship("EmailMessage", back_populates="email_account", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<EmailAccount(id={self.id}, email={self.email_address}, user_id={self.user_id})>"
+
+
+class EmailMessage(Base):
+    """Модель обработанного email сообщения"""
+    __tablename__ = "email_messages"
+
+    id = Column(Integer, primary_key=True)
+    email_account_id = Column(Integer, ForeignKey("email_accounts.id", ondelete='CASCADE'), nullable=False)
+
+    # Email метаданные
+    message_id = Column(String(255), unique=True, nullable=False, index=True)
+    uid = Column(Integer, nullable=False)
+    subject = Column(String(500))
+    from_address = Column(String(255), nullable=False)
+    to_address = Column(String(255))
+    date = Column(DateTime)
+
+    # Содержимое
+    body_text = Column(Text)
+    body_html = Column(Text)
+    has_attachments = Column(Boolean, default=False)
+
+    # Обработка
+    processed = Column(Boolean, default=False)
+    processed_at = Column(DateTime, nullable=True)
+    task_id = Column(Integer, ForeignKey("tasks.id"), nullable=True)
+    error_message = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Связи
+    email_account = relationship("EmailAccount", back_populates="email_messages")
+    task = relationship("Task", backref="email_source")
+
+    def __repr__(self):
+        return f"<EmailMessage(id={self.id}, from={self.from_address}, subject={self.subject})>"

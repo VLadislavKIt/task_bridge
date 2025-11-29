@@ -51,6 +51,19 @@ export function TaskList({ tasks, onTaskClick, loading }) {
             </div>
           </div>
 
+          <div className="task-footer">
+            {task.creator && (
+              <span className="task-creator">
+                Создал: {task.creator.first_name || task.creator.username}
+              </span>
+            )}
+            {task.created_at && (
+              <span className="task-created">
+                {formatRelativeTime(task.created_at)}
+              </span>
+            )}
+          </div>
+
           {task.category && (
             <div className="task-category">
               <span className="category-badge">{task.category.name}</span>

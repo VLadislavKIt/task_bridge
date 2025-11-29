@@ -203,6 +203,13 @@ export function TaskDetail({ task: initialTask, onBack, isManager }) {
               </span>
             </div>
           )}
+
+          {task.created_at && (
+            <div className="info-row">
+              <span className="info-label">Создана:</span>
+              <span className="info-value">{formatDate(task.created_at)}</span>
+            </div>
+          )}
         </div>
 
         <div className="task-description-section">

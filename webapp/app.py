@@ -102,7 +102,16 @@ async def get_tasks(
     - category_id: ID категории
     - assigned_to: ID исполнителя (фильтр по одному из исполнителей)
     - created_by: ID создателя задачи
+
+    ВАЖНО: Должен быть указан хотя бы один из фильтров assigned_to или created_by
     """
+    # Защита от получения всех задач - требуем обязательно assigned_to или created_by
+    if not assigned_to and not created_by:
+        raise HTTPException(
+            status_code=400,
+            detail="Required parameter missing: either 'assigned_to' or 'created_by' must be specified"
+        )
+
     query = db.query(Task)
 
     if status:

@@ -409,6 +409,25 @@ body.dark-theme .assignee-badge.unassigned,
   align-items: center;
 }
 
+.task-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: var(--spacing-sm);
+  padding-top: var(--spacing-sm);
+  border-top: 1px solid var(--border-color);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.task-creator {
+  font-weight: 500;
+}
+
+.task-created {
+  color: var(--text-hint);
+}
+
 .task-status {
   padding: 4px 10px;
   border-radius: 12px;

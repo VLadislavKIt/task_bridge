@@ -218,7 +218,12 @@ async def get_task(task_id: int, db: Session = Depends(get_db)):
 
 
 @app.patch("/api/tasks/{task_id}/status")
-async def update_task_status(task_id: int, status: str, db: Session = Depends(get_db)):
+async def update_task_status(
+    task_id: int,
+    status: str,
+    user_id: Optional[int] = None,
+    db: Session = Depends(get_db)
+):
     """Обновить статус задачи"""
     task = db.query(Task).filter(Task.id == task_id).first()
 
@@ -228,8 +233,30 @@ async def update_task_status(task_id: int, status: str, db: Session = Depends(ge
     if status not in ["pending", "in_progress", "completed", "cancelled"]:
         raise HTTPException(status_code=400, detail="Invalid status")
 
+    # Сохраняем старый статус для уведомления
+    old_status = task.status
+
+    # Обновляем статус
     task.status = status
     db.commit()
+
+    # Отправляем уведомления если статус действительно изменился и известен user_id
+    if old_status != status and user_id:
+        try:
+            from bot.notifications import notify_status_changed
+            import asyncio
+            asyncio.create_task(
+                notify_status_changed(
+                    task_id=task_id,
+                    old_status=old_status,
+                    new_status=status,
+                    changed_by_user_id=user_id,
+                    db=db
+                )
+            )
+        except Exception as e:
+            logger.error(f"Failed to send status change notifications: {e}")
+            # Не прерываем выполнение, уведомление не критично
 
     return {"id": task.id, "status": task.status}
 

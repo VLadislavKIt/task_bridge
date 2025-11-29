@@ -21,10 +21,12 @@ export const getTask = async (taskId) => {
   return response.data
 }
 
-export const updateTaskStatus = async (taskId, status) => {
-  const response = await api.patch(`/tasks/${taskId}/status`, null, {
-    params: { status }
-  })
+export const updateTaskStatus = async (taskId, status, userId = null) => {
+  const params = { status }
+  if (userId) {
+    params.user_id = userId
+  }
+  const response = await api.patch(`/tasks/${taskId}/status`, null, { params })
   return response.data
 }
 

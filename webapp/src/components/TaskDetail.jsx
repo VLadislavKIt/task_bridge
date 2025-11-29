@@ -50,7 +50,8 @@ export function TaskDetail({ task: initialTask, onBack, isManager }) {
 
   async function handleStatusChange(newStatus) {
     try {
-      await updateTaskStatus(task.id, newStatus)
+      const userId = new URLSearchParams(window.location.search).get('user_id')
+      await updateTaskStatus(task.id, newStatus, parseInt(userId))
       setTask({ ...task, status: newStatus })
       showTelegramAlert('Статус обновлен')
     } catch (err) {

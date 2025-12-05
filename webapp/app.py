@@ -107,24 +107,42 @@ async def get_tasks(
     """
     # Защита от получения всех задач - требуем обязательно assigned_to или created_by
     if not assigned_to and not created_by:
+        logger.error(f"API /tasks called without assigned_to or created_by filters!")
         raise HTTPException(
             status_code=400,
             detail="Required parameter missing: either 'assigned_to' or 'created_by' must be specified"
         )
 
+    logger.info(f"GET /api/tasks - Filters: status={status}, category_id={category_id}, assigned_to={assigned_to}, created_by={created_by}")
+
     query = db.query(Task)
 
+    # Базовые фильтры
     if status:
         query = query.filter(Task.status == status)
     if category_id:
         query = query.filter(Task.category_id == category_id)
-    if created_by:
+
+    # Критичная логика фильтрации по пользователю
+    # Если указаны ОБА параметра - показываем задачи где пользователь ЛИБО создатель ЛИБО исполнитель
+    if assigned_to and created_by:
+        # OR условие - задачи где пользователь либо создал, либо назначен исполнителем
+        query = query.outerjoin(Task.assignees).filter(
+            or_(
+                Task.created_by == created_by,
+                User.id == assigned_to
+            )
+        ).distinct()
+    # Если только created_by - только созданные пользователем
+    elif created_by:
         query = query.filter(Task.created_by == created_by)
-    if assigned_to:
-        # Фильтруем по исполнителю через many-to-many связь
+    # Если только assigned_to - только назначенные на пользователя
+    elif assigned_to:
         query = query.join(Task.assignees).filter(User.id == assigned_to)
 
     tasks = query.order_by(desc(Task.created_at)).all()
+
+    logger.info(f"Found {len(tasks)} tasks for user (assigned_to={assigned_to}, created_by={created_by})")
 
     result = []
     for task in tasks:
@@ -170,6 +188,10 @@ async def get_tasks(
             "creator": creator,  # Создатель задачи
             "category": category
         })
+
+    # Логируем каждую возвращаемую задачу для отладки
+    for task_data in result:
+        logger.info(f"  Task #{task_data['id']}: '{task_data['title']}' - created_by={task_data['creator']['id'] if task_data['creator'] else None}, assignees={[a['id'] for a in task_data['assignees']]}")
 
     return result
 

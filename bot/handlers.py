@@ -13,7 +13,7 @@ from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from sqlalchemy.orm import Session
 
 from config import TASK_KEYWORDS, MINI_APP_URL, HOST, PORT, WEB_APP_DOMAIN
-from db.models import User, Message as MessageModel, Task, Category, PendingTask, TaskFile
+from db.models import User, Message as MessageModel, Task, Category, PendingTask, TaskFile, Chat
 from db.database import get_db_session
 from bot.ai_extractor import analyze_message
 
@@ -116,7 +116,7 @@ async def get_or_create_user(bot: Bot, telegram_id: int, username: str = None,
 
 
 async def get_or_create_user_by_username(db: Session, username: str) -> User:
-    
+
     user = db.query(User).filter(User.username == username).first()
 
     if not user:
@@ -132,6 +132,44 @@ async def get_or_create_user_by_username(db: Session, username: str) -> User:
         logger.info(f"Created temporary user @{username} (ID: {user.id})")
 
     return user
+
+
+async def get_or_create_chat(chat_id: int, chat_type: str, title: str = None,
+                              username: str = None, db: Session = None) -> Chat:
+    """Получает чат из БД или создает новый"""
+    chat = db.query(Chat).filter(Chat.chat_id == chat_id).first()
+
+    if not chat:
+        chat = Chat(
+            chat_id=chat_id,
+            chat_type=chat_type,
+            title=title,
+            username=username,
+            is_active=True
+        )
+        db.add(chat)
+        db.commit()
+        db.refresh(chat)
+        logger.info(f"Registered new chat: {chat_id} ({chat_type}) - {title}")
+    else:
+        # Обновляем информацию о чате, если изменилась
+        updated = False
+        if chat.title != title and title:
+            chat.title = title
+            updated = True
+        if chat.username != username and username:
+            chat.username = username
+            updated = True
+        if not chat.is_active:
+            chat.is_active = True
+            updated = True
+
+        if updated:
+            db.commit()
+            db.refresh(chat)
+            logger.info(f"Updated chat info: {chat_id}")
+
+    return chat
 
 
 async def notify_comment_added(bot: Bot, task_id: int, comment_author_id: int, comment_text: str, db: Session) -> None:
@@ -723,11 +761,20 @@ async def handle_group_message(message: Message):
     db = get_db_session()
 
     try:
-        
+
         if message.from_user.is_bot:
             return
 
-        
+        # Регистрируем/обновляем чат в базе данных
+        chat = await get_or_create_chat(
+            chat_id=message.chat.id,
+            chat_type=message.chat.type,
+            title=message.chat.title,
+            username=message.chat.username,
+            db=db
+        )
+
+
         user = await get_or_create_user(
             bot=message.bot,
             telegram_id=message.from_user.id,
@@ -738,7 +785,7 @@ async def handle_group_message(message: Message):
             db=db
         )
 
-        
+
         if not message.text:
             logger.info("Message without text, skipping")
             return

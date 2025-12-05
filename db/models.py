@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Boolean, ForeignKey, JSON, Table
+from sqlalchemy import Column, Integer, BigInteger, String, Text, DateTime, Boolean, ForeignKey, JSON, Table
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -16,12 +16,37 @@ task_assignees = Table(
 )
 
 
+class Chat(Base):
+    """Модель чата, в котором работает бот"""
+    __tablename__ = "chats"
+
+    id = Column(Integer, primary_key=True)
+    chat_id = Column(BigInteger, unique=True, nullable=False, index=True)
+    chat_type = Column(String(50), nullable=False)  # private, group, supergroup, channel
+    title = Column(String(500), nullable=True)  # Название группы/канала
+    username = Column(String(255), nullable=True)  # Username чата (если есть)
+
+    # Метаданные
+    is_active = Column(Boolean, default=True)  # Активен ли бот в этом чате
+    added_at = Column(DateTime, default=datetime.utcnow)  # Когда бот был добавлен
+    removed_at = Column(DateTime, nullable=True)  # Когда бот был удален (если был)
+
+    # Настройки чата
+    auto_confirm_tasks = Column(Boolean, default=False)  # Автоподтверждение задач для этого чата
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def __repr__(self):
+        return f"<Chat(chat_id={self.chat_id}, type={self.chat_type}, title={self.title})>"
+
+
 class User(Base):
 
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True)
-    telegram_id = Column(Integer, unique=True, nullable=False, index=True)
+    telegram_id = Column(BigInteger, unique=True, nullable=False, index=True)
     username = Column(String(255), nullable=True)
     first_name = Column(String(255), nullable=True)
     last_name = Column(String(255), nullable=True)
@@ -42,8 +67,8 @@ class Message(Base):
     __tablename__ = "messages"
 
     id = Column(Integer, primary_key=True)
-    message_id = Column(Integer, nullable=False)
-    chat_id = Column(Integer, nullable=False, index=True)
+    message_id = Column(BigInteger, nullable=False)
+    chat_id = Column(BigInteger, nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     text = Column(Text, nullable=True)
     date = Column(DateTime, nullable=False)

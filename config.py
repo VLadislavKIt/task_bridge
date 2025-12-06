@@ -29,7 +29,8 @@ HOST = os.getenv("HOST", "0.0.0.0")
 
 PORT = int(os.getenv("PORT", "8000"))
 
-WEB_APP_DOMAIN = os.getenv("WEB_APP_DOMAIN", f"http://{HOST}:{PORT}")
+# Нормализация WEB_APP_DOMAIN - убираем слеш в конце, если есть
+WEB_APP_DOMAIN = os.getenv("WEB_APP_DOMAIN", f"http://{HOST}:{PORT}").rstrip("/")
 
 MINI_APP_URL = os.getenv("MINI_APP_URL", f"{WEB_APP_DOMAIN}/webapp/index.html")
 

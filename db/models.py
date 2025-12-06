@@ -135,7 +135,7 @@ class PendingTask(Base):
 
     id = Column(Integer, primary_key=True)
     message_id = Column(Integer, ForeignKey("messages.id"), nullable=False)
-    chat_id = Column(Integer, nullable=False)  # ID группового чата
+    chat_id = Column(BigInteger, nullable=False)  # ID группового чата
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # Кто написал сообщение
 
     # Данные задачи
@@ -148,7 +148,7 @@ class PendingTask(Base):
 
     # Статус подтверждения
     status = Column(String(50), default="pending")  # pending, confirmed, rejected
-    telegram_message_id = Column(Integer, nullable=True)  # ID сообщения с кнопками подтверждения
+    telegram_message_id = Column(BigInteger, nullable=True)  # ID сообщения с кнопками подтверждения
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

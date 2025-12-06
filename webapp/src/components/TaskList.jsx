@@ -1,4 +1,4 @@
-import { getStatusText, getPriorityText, formatRelativeTime } from '../utils/format'
+import { getStatusText, getPriorityText, formatRelativeTime, formatTimeAgo } from '../utils/format'
 
 export function TaskList({ tasks, onTaskClick, loading }) {
   if (loading) {
@@ -59,7 +59,7 @@ export function TaskList({ tasks, onTaskClick, loading }) {
             )}
             {task.created_at && (
               <span className="task-created">
-                {formatRelativeTime(task.created_at)}
+                {formatTimeAgo(task.created_at)}
               </span>
             )}
           </div>

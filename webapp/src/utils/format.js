@@ -58,6 +58,32 @@ export function formatRelativeTime(dateString) {
   }
 }
 
+export function formatTimeAgo(dateString) {
+  if (!dateString) return null
+
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffMs = now - date  // Обратный порядок - считаем время назад
+  const diffMinutes = Math.floor(diffMs / (1000 * 60))
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+  if (diffMinutes < 1) {
+    return 'Только что'
+  } else if (diffMinutes < 60) {
+    return `${diffMinutes} мин назад`
+  } else if (diffHours < 24) {
+    return `${diffHours} ч назад`
+  } else if (diffDays === 1) {
+    return 'Вчера'
+  } else if (diffDays < 7) {
+    return `${diffDays} дн назад`
+  } else {
+    // Для старых задач показываем полную дату
+    return `${date.getDate()}.${String(date.getMonth() + 1).padStart(2, '0')}.${date.getFullYear()}`
+  }
+}
+
 export function getStatusText(status) {
   const statusMap = {
     pending: 'Ожидает',

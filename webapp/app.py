@@ -10,11 +10,22 @@ from db.models import Task, User, Category, Message as MessageModel, TaskFile, C
 from pydantic import BaseModel
 import os
 from pathlib import Path
+from datetime import datetime
 
 app = FastAPI(title="TaskBridge API")
 
 import logging
 logger = logging.getLogger(__name__)
+
+
+def format_datetime_utc(dt):
+    """
+    Форматирует datetime в ISO формат с UTC timezone.
+    Добавляет 'Z' в конец для обозначения UTC.
+    """
+    if dt is None:
+        return None
+    return dt.isoformat() + 'Z'
 
 # Определяем пути к файлам
 webapp_dir = Path(__file__).parent.resolve()
@@ -181,9 +192,9 @@ async def get_tasks(
             "description": task.description,
             "status": task.status,
             "priority": task.priority,
-            "due_date": task.due_date.isoformat() if task.due_date else None,
-            "created_at": task.created_at.isoformat(),
-            "updated_at": task.updated_at.isoformat(),
+            "due_date": format_datetime_utc(task.due_date),
+            "created_at": format_datetime_utc(task.created_at),
+            "updated_at": format_datetime_utc(task.updated_at),
             "assignees": assignees,  # Множественные исполнители
             "creator": creator,  # Создатель задачи
             "category": category
@@ -239,9 +250,9 @@ async def get_task(task_id: int, db: Session = Depends(get_db)):
         "description": task.description,
         "status": task.status,
         "priority": task.priority,
-        "due_date": task.due_date.isoformat() if task.due_date else None,
-        "created_at": task.created_at.isoformat(),
-        "updated_at": task.updated_at.isoformat(),
+        "due_date": format_datetime_utc(task.due_date),
+        "created_at": format_datetime_utc(task.created_at),
+        "updated_at": format_datetime_utc(task.updated_at),
         "assignees": assignees,  # Множественные исполнители
         "creator": creator,  # Создатель задачи
         "category": category
@@ -402,7 +413,7 @@ async def get_task_files(task_id: int, db: Session = Depends(get_db)):
             "file_size": file.file_size,
             "mime_type": file.mime_type,
             "caption": file.caption,
-            "created_at": file.created_at.isoformat(),
+            "created_at": format_datetime_utc(file.created_at),
             "uploaded_by": {
                 "id": uploader.id,
                 "username": uploader.username,
@@ -438,7 +449,7 @@ async def get_task_comments(task_id: int, db: Session = Depends(get_db)):
         result.append({
             "id": comment.id,
             "text": comment.text,
-            "created_at": comment.created_at.isoformat(),
+            "created_at": format_datetime_utc(comment.created_at),
             "author": {
                 "id": author.id,
                 "username": author.username,
@@ -484,7 +495,7 @@ async def create_task_comment(task_id: int, comment_data: CommentCreate, db: Ses
     return {
         "id": comment.id,
         "text": comment.text,
-        "created_at": comment.created_at.isoformat(),
+        "created_at": format_datetime_utc(comment.created_at),
         "author": {
             "id": user.id,
             "username": user.username,

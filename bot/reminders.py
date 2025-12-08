@@ -133,7 +133,7 @@ async def check_and_send_reminders(bot: Bot):
 
 
 def start_reminder_scheduler(bot: Bot):
- 
+
     global scheduler
 
     if scheduler is not None:
@@ -141,10 +141,10 @@ def start_reminder_scheduler(bot: Bot):
         return
 
     try:
-       
+
         scheduler = AsyncIOScheduler(timezone=TIMEZONE)
 
-        
+        # Задача для проверки напоминаний
         scheduler.add_job(
             check_and_send_reminders,
             'interval',
@@ -154,10 +154,21 @@ def start_reminder_scheduler(bot: Bot):
             replace_existing=True
         )
 
-        
+        # Задача для проверки email каждые 10 минут
+        from bot.email_processor import check_and_process_emails
+        scheduler.add_job(
+            check_and_process_emails,
+            'interval',
+            minutes=10,  # Проверяем email каждые 10 минут
+            id='check_emails',
+            replace_existing=True
+        )
+
+
         scheduler.start()
 
         logger.info(f"Reminder scheduler started with interval {REMINDER_CHECK_INTERVAL} minutes")
+        logger.info("Email checker started with interval 10 minutes")
 
     except Exception as e:
         logger.error(f"Failed to start reminder scheduler: {e}", exc_info=True)

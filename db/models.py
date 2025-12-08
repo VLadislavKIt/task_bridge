@@ -211,7 +211,7 @@ class EmailAccount(Base):
     imap_server = Column(String(255), nullable=False)
     imap_port = Column(Integer, default=993)
     imap_username = Column(String(255), nullable=False)
-    imap_password_encrypted = Column(Text, nullable=False)  # Зашифрованный пароль
+    imap_password = Column(Text, nullable=False)  # Пароль приложения (App Password)
     use_ssl = Column(Boolean, default=True)
 
     # Настройки обработки

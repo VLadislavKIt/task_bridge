@@ -34,6 +34,8 @@ export default function EmailAccounts({ currentUser }) {
   useEffect(() => {
     if (currentUser) {
       loadAccounts()
+    } else {
+      setLoading(false)
     }
   }, [currentUser])
 
@@ -209,6 +211,18 @@ export default function EmailAccounts({ currentUser }) {
     return (
       <div className="email-accounts-container">
         <div className="loading">Загрузка...</div>
+      </div>
+    )
+  }
+
+  if (!currentUser) {
+    return (
+      <div className="email-accounts-container">
+        <div className="empty-state">
+          <AlertCircle size={64} />
+          <h3>Пользователь не найден</h3>
+          <p>Не удалось загрузить данные пользователя. Попробуйте перезагрузить страницу.</p>
+        </div>
       </div>
     )
   }

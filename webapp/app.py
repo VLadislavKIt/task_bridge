@@ -6,7 +6,7 @@ from sqlalchemy import func, desc, or_
 from typing import List, Optional
 
 from db.database import get_db
-from db.models import Task, User, Category, Message as MessageModel, TaskFile, Comment
+from db.models import Task, User, Category, Message as MessageModel, TaskFile, Comment, EmailAccount, EmailMessage
 from pydantic import BaseModel
 import os
 from pathlib import Path
@@ -561,3 +561,290 @@ async def remove_task_assignee(task_id: int, user_id: int, db: Session = Depends
     db.commit()
 
     return {"message": "Assignee removed successfully"}
+
+
+# ============================================================
+# Email Account Management API
+# ============================================================
+
+class EmailAccountCreate(BaseModel):
+    """Модель для создания email аккаунта"""
+    email_address: str
+    imap_server: str
+    imap_port: int = 993
+    imap_username: str
+    imap_password: str
+    use_ssl: bool = True
+    folder: str = "INBOX"
+    auto_confirm: bool = False
+    only_from_addresses: Optional[List[str]] = None
+    subject_keywords: Optional[List[str]] = None
+
+
+class EmailAccountUpdate(BaseModel):
+    """Модель для обновления email аккаунта"""
+    is_active: Optional[bool] = None
+    auto_confirm: Optional[bool] = None
+    folder: Optional[str] = None
+    only_from_addresses: Optional[List[str]] = None
+    subject_keywords: Optional[List[str]] = None
+    imap_password: Optional[str] = None
+
+
+class EmailAccountTest(BaseModel):
+    """Модель для тестирования подключения"""
+    email_address: str
+    imap_server: str
+    imap_port: int = 993
+    imap_username: str
+    imap_password: str
+    use_ssl: bool = True
+
+
+@app.get("/api/email-accounts", response_model=List[dict])
+async def get_email_accounts(user_id: Optional[int] = None, db: Session = Depends(get_db)):
+    """
+    Получить все email аккаунты пользователя
+    """
+    if not user_id:
+        raise HTTPException(status_code=400, detail="user_id parameter is required")
+
+    accounts = db.query(EmailAccount).filter(EmailAccount.user_id == user_id).all()
+
+    result = []
+    for account in accounts:
+        # Подсчитываем статистику
+        total_messages = db.query(EmailMessage).filter(
+            EmailMessage.email_account_id == account.id
+        ).count()
+
+        processed_messages = db.query(EmailMessage).filter(
+            EmailMessage.email_account_id == account.id,
+            EmailMessage.processed == True
+        ).count()
+
+        tasks_created = db.query(EmailMessage).filter(
+            EmailMessage.email_account_id == account.id,
+            EmailMessage.task_id.isnot(None)
+        ).count()
+
+        result.append({
+            "id": account.id,
+            "email_address": account.email_address,
+            "imap_server": account.imap_server,
+            "imap_port": account.imap_port,
+            "imap_username": account.imap_username,
+            "use_ssl": account.use_ssl,
+            "folder": account.folder,
+            "is_active": account.is_active,
+            "auto_confirm": account.auto_confirm,
+            "last_checked": format_datetime_utc(account.last_checked),
+            "last_uid": account.last_uid,
+            "only_from_addresses": account.only_from_addresses or [],
+            "subject_keywords": account.subject_keywords or [],
+            "created_at": format_datetime_utc(account.created_at),
+            "updated_at": format_datetime_utc(account.updated_at),
+            "stats": {
+                "total_messages": total_messages,
+                "processed_messages": processed_messages,
+                "tasks_created": tasks_created
+            }
+        })
+
+    return result
+
+
+@app.post("/api/email-accounts", response_model=dict)
+async def create_email_account(account_data: EmailAccountCreate, user_id: int, db: Session = Depends(get_db)):
+    """
+    Создать новый email аккаунт
+    """
+    # Проверяем существование пользователя
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Проверяем не существует ли уже такой email
+    existing = db.query(EmailAccount).filter(
+        EmailAccount.email_address == account_data.email_address
+    ).first()
+
+    if existing:
+        raise HTTPException(status_code=400, detail="Email account already exists")
+
+    # Проверяем лимит (5 аккаунтов на пользователя)
+    accounts_count = db.query(EmailAccount).filter(EmailAccount.user_id == user_id).count()
+    if accounts_count >= 5:
+        raise HTTPException(status_code=400, detail="Maximum 5 email accounts per user")
+
+    # Тестируем подключение перед сохранением
+    from bot.email_handler import test_imap_connection
+
+    success, error_message = test_imap_connection(
+        server=account_data.imap_server,
+        port=account_data.imap_port,
+        username=account_data.imap_username,
+        password=account_data.imap_password,
+        use_ssl=account_data.use_ssl
+    )
+
+    if not success:
+        raise HTTPException(status_code=400, detail=f"IMAP connection failed: {error_message}")
+
+    # Создаем аккаунт
+    new_account = EmailAccount(
+        user_id=user_id,
+        email_address=account_data.email_address,
+        imap_server=account_data.imap_server,
+        imap_port=account_data.imap_port,
+        imap_username=account_data.imap_username,
+        imap_password=account_data.imap_password,
+        use_ssl=account_data.use_ssl,
+        folder=account_data.folder,
+        is_active=True,
+        auto_confirm=account_data.auto_confirm,
+        only_from_addresses=account_data.only_from_addresses,
+        subject_keywords=account_data.subject_keywords,
+        last_uid=0
+    )
+
+    db.add(new_account)
+    db.commit()
+    db.refresh(new_account)
+
+    return {
+        "id": new_account.id,
+        "email_address": new_account.email_address,
+        "message": "Email account created successfully"
+    }
+
+
+@app.put("/api/email-accounts/{account_id}", response_model=dict)
+async def update_email_account(
+    account_id: int,
+    account_data: EmailAccountUpdate,
+    db: Session = Depends(get_db)
+):
+    """
+    Обновить настройки email аккаунта
+    """
+    account = db.query(EmailAccount).filter(EmailAccount.id == account_id).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="Email account not found")
+
+    # Обновляем поля
+    if account_data.is_active is not None:
+        account.is_active = account_data.is_active
+
+    if account_data.auto_confirm is not None:
+        account.auto_confirm = account_data.auto_confirm
+
+    if account_data.folder is not None:
+        account.folder = account_data.folder
+
+    if account_data.only_from_addresses is not None:
+        account.only_from_addresses = account_data.only_from_addresses
+
+    if account_data.subject_keywords is not None:
+        account.subject_keywords = account_data.subject_keywords
+
+    if account_data.imap_password is not None:
+        # Если меняется пароль - тестируем подключение
+        from bot.email_handler import test_imap_connection
+
+        success, error_message = test_imap_connection(
+            server=account.imap_server,
+            port=account.imap_port,
+            username=account.imap_username,
+            password=account_data.imap_password,
+            use_ssl=account.use_ssl
+        )
+
+        if not success:
+            raise HTTPException(status_code=400, detail=f"IMAP connection failed: {error_message}")
+
+        account.imap_password = account_data.imap_password
+
+    db.commit()
+
+    return {"message": "Email account updated successfully"}
+
+
+@app.delete("/api/email-accounts/{account_id}")
+async def delete_email_account(account_id: int, db: Session = Depends(get_db)):
+    """
+    Удалить email аккаунт
+    """
+    account = db.query(EmailAccount).filter(EmailAccount.id == account_id).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="Email account not found")
+
+    db.delete(account)
+    db.commit()
+
+    return {"message": "Email account deleted successfully"}
+
+
+@app.post("/api/email-accounts/test", response_model=dict)
+async def test_email_connection(test_data: EmailAccountTest):
+    """
+    Тестировать IMAP подключение без сохранения
+    """
+    from bot.email_handler import test_imap_connection
+
+    success, error_message = test_imap_connection(
+        server=test_data.imap_server,
+        port=test_data.imap_port,
+        username=test_data.imap_username,
+        password=test_data.imap_password,
+        use_ssl=test_data.use_ssl
+    )
+
+    if success:
+        return {
+            "success": True,
+            "message": "Connection successful"
+        }
+    else:
+        return {
+            "success": False,
+            "message": error_message
+        }
+
+
+@app.get("/api/email-accounts/{account_id}/messages", response_model=List[dict])
+async def get_email_messages(
+    account_id: int,
+    limit: int = 50,
+    offset: int = 0,
+    db: Session = Depends(get_db)
+):
+    """
+    Получить историю обработанных email сообщений
+    """
+    account = db.query(EmailAccount).filter(EmailAccount.id == account_id).first()
+    if not account:
+        raise HTTPException(status_code=404, detail="Email account not found")
+
+    messages = db.query(EmailMessage).filter(
+        EmailMessage.email_account_id == account_id
+    ).order_by(desc(EmailMessage.date)).limit(limit).offset(offset).all()
+
+    result = []
+    for msg in messages:
+        result.append({
+            "id": msg.id,
+            "message_id": msg.message_id,
+            "subject": msg.subject,
+            "from_address": msg.from_address,
+            "to_address": msg.to_address,
+            "date": format_datetime_utc(msg.date),
+            "has_attachments": msg.has_attachments,
+            "processed": msg.processed,
+            "processed_at": format_datetime_utc(msg.processed_at),
+            "task_id": msg.task_id,
+            "error_message": msg.error_message,
+            "created_at": format_datetime_utc(msg.created_at)
+        })
+
+    return result

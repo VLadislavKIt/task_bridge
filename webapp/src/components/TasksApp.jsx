@@ -4,6 +4,7 @@ import { TaskList } from './TaskList'
 import { TaskDetail } from './TaskDetail'
 import { StatsWidget } from './StatsWidget'
 import { FilterBar } from './FilterBar'
+import EmailAccounts from './EmailAccounts'
 
 export function TasksApp({ userId }) {
   const [tasks, setTasks] = useState([])
@@ -12,7 +13,8 @@ export function TasksApp({ userId }) {
   const [selectedTask, setSelectedTask] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [activeTab, setActiveTab] = useState('my_tasks') // my_tasks | created_by_me
+  const [activeTab, setActiveTab] = useState('my_tasks') // my_tasks | created_by_me | emails
+  const [currentUser, setCurrentUser] = useState(null)
 
   // Фильтры
   const [filters, setFilters] = useState({
@@ -21,8 +23,26 @@ export function TasksApp({ userId }) {
   })
 
   useEffect(() => {
-    loadData()
+    if (activeTab !== 'emails') {
+      loadData()
+    }
+    loadUserData()
   }, [filters, activeTab])
+
+  async function loadUserData() {
+    try {
+      const response = await fetch(`http://localhost:8000/api/users`)
+      if (response.ok) {
+        const users = await response.json()
+        const user = users.find(u => u.id === userId)
+        if (user) {
+          setCurrentUser(user)
+        }
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error)
+    }
+  }
 
   async function loadData() {
     try {
@@ -131,22 +151,35 @@ export function TasksApp({ userId }) {
         >
           Назначенные мной
         </button>
+        <button
+          className={`tab ${activeTab === 'emails' ? 'active' : ''}`}
+          onClick={() => setActiveTab('emails')}
+        >
+          📧 Email
+        </button>
       </div>
 
-      {/* Статистика для обеих вкладок */}
-      {stats && <StatsWidget stats={stats} />}
+      {/* Контент в зависимости от вкладки */}
+      {activeTab === 'emails' ? (
+        <EmailAccounts currentUser={currentUser} />
+      ) : (
+        <>
+          {/* Статистика для обеих вкладок */}
+          {stats && <StatsWidget stats={stats} />}
 
-      <FilterBar
-        filters={filters}
-        categories={categories}
-        onFilterChange={handleFilterChange}
-      />
+          <FilterBar
+            filters={filters}
+            categories={categories}
+            onFilterChange={handleFilterChange}
+          />
 
-      <TaskList
-        tasks={tasks}
-        onTaskClick={handleTaskClick}
-        loading={loading}
-      />
+          <TaskList
+            tasks={tasks}
+            onTaskClick={handleTaskClick}
+            loading={loading}
+          />
+        </>
+      )}
 
       {!loading && tasks.length === 0 && (
         <div className="empty-state">

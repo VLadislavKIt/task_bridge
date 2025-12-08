@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react'
-import { Mail, Plus, Trash2, RefreshCw, Check, X, Settings, AlertCircle } from 'lucide-react'
+import { Mail, Plus, Trash2, Check, X, AlertCircle } from 'lucide-react'
 import '../styles/EmailAccounts.css'
 
 export default function EmailAccounts({ currentUser }) {
   const [accounts, setAccounts] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)
-  const [editingAccount, setEditingAccount] = useState(null)
   const [testing, setTesting] = useState(false)
 
   // Форма нового аккаунта
@@ -18,13 +17,8 @@ export default function EmailAccounts({ currentUser }) {
     imap_password: '',
     use_ssl: true,
     folder: 'INBOX',
-    auto_confirm: false,
-    only_from_addresses: [],
-    subject_keywords: []
+    auto_confirm: false
   })
-
-  const [tempSender, setTempSender] = useState('')
-  const [tempKeyword, setTempKeyword] = useState('')
 
   // IMAP servers для автоопределения
   const IMAP_SERVERS = {
@@ -179,84 +173,6 @@ export default function EmailAccounts({ currentUser }) {
     }
   }
 
-  const updateFilters = async (accountId) => {
-    try {
-      const account = accounts.find(a => a.id === accountId)
-      const response = await fetch(`http://localhost:8000/api/email-accounts/${accountId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          only_from_addresses: account.only_from_addresses,
-          subject_keywords: account.subject_keywords
-        })
-      })
-
-      if (response.ok) {
-        alert('✅ Фильтры обновлены')
-        setEditingAccount(null)
-        loadAccounts()
-      }
-    } catch (error) {
-      alert(`❌ Ошибка: ${error.message}`)
-    }
-  }
-
-  const addSender = (accountId) => {
-    if (!tempSender.trim()) return
-
-    setAccounts(prev => prev.map(acc => {
-      if (acc.id === accountId) {
-        return {
-          ...acc,
-          only_from_addresses: [...(acc.only_from_addresses || []), tempSender.trim()]
-        }
-      }
-      return acc
-    }))
-
-    setTempSender('')
-  }
-
-  const removeSender = (accountId, sender) => {
-    setAccounts(prev => prev.map(acc => {
-      if (acc.id === accountId) {
-        return {
-          ...acc,
-          only_from_addresses: acc.only_from_addresses.filter(s => s !== sender)
-        }
-      }
-      return acc
-    }))
-  }
-
-  const addKeyword = (accountId) => {
-    if (!tempKeyword.trim()) return
-
-    setAccounts(prev => prev.map(acc => {
-      if (acc.id === accountId) {
-        return {
-          ...acc,
-          subject_keywords: [...(acc.subject_keywords || []), tempKeyword.trim()]
-        }
-      }
-      return acc
-    }))
-
-    setTempKeyword('')
-  }
-
-  const removeKeyword = (accountId, keyword) => {
-    setAccounts(prev => prev.map(acc => {
-      if (acc.id === accountId) {
-        return {
-          ...acc,
-          subject_keywords: acc.subject_keywords.filter(k => k !== keyword)
-        }
-      }
-      return acc
-    }))
-  }
-
   const resetForm = () => {
     setNewAccount({
       email_address: '',
@@ -266,9 +182,7 @@ export default function EmailAccounts({ currentUser }) {
       imap_password: '',
       use_ssl: true,
       folder: 'INBOX',
-      auto_confirm: false,
-      only_from_addresses: [],
-      subject_keywords: []
+      auto_confirm: false
     })
   }
 
@@ -414,14 +328,6 @@ export default function EmailAccounts({ currentUser }) {
                 </button>
 
                 <button
-                  className="btn-icon"
-                  onClick={() => setEditingAccount(editingAccount === account.id ? null : account.id)}
-                  title="Настройки"
-                >
-                  <Settings size={18} />
-                </button>
-
-                <button
                   className="btn-icon btn-danger"
                   onClick={() => deleteAccount(account.id, account.email_address)}
                   title="Удалить"
@@ -455,70 +361,6 @@ export default function EmailAccounts({ currentUser }) {
               </div>
             </div>
 
-            {editingAccount === account.id && (
-              <div className="account-filters">
-                <h4>Фильтры</h4>
-
-                <div className="filter-section">
-                  <label>Только от отправителей:</label>
-                  <div className="filter-list">
-                    {account.only_from_addresses?.map((sender, idx) => (
-                      <span key={idx} className="filter-tag">
-                        {sender}
-                        <button onClick={() => removeSender(account.id, sender)}>
-                          <X size={14} />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                  <div className="filter-input">
-                    <input
-                      type="email"
-                      value={tempSender}
-                      onChange={e => setTempSender(e.target.value)}
-                      placeholder="boss@company.com"
-                      onKeyPress={e => e.key === 'Enter' && addSender(account.id)}
-                    />
-                    <button onClick={() => addSender(account.id)}>
-                      <Plus size={16} />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="filter-section">
-                  <label>Ключевые слова в теме:</label>
-                  <div className="filter-list">
-                    {account.subject_keywords?.map((keyword, idx) => (
-                      <span key={idx} className="filter-tag">
-                        {keyword}
-                        <button onClick={() => removeKeyword(account.id, keyword)}>
-                          <X size={14} />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                  <div className="filter-input">
-                    <input
-                      type="text"
-                      value={tempKeyword}
-                      onChange={e => setTempKeyword(e.target.value)}
-                      placeholder="задача, срочно, TODO"
-                      onKeyPress={e => e.key === 'Enter' && addKeyword(account.id)}
-                    />
-                    <button onClick={() => addKeyword(account.id)}>
-                      <Plus size={16} />
-                    </button>
-                  </div>
-                </div>
-
-                <button
-                  className="btn-primary"
-                  onClick={() => updateFilters(account.id)}
-                >
-                  Сохранить фильтры
-                </button>
-              </div>
-            )}
           </div>
         ))}
 

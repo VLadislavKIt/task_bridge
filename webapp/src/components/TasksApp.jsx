@@ -22,11 +22,15 @@ export function TasksApp({ userId }) {
     category_id: null
   })
 
+  // Загрузка данных пользователя при первом рендере
+  useEffect(() => {
+    loadUserData()
+  }, [])
+
   useEffect(() => {
     if (activeTab !== 'emails') {
       loadData()
     }
-    loadUserData()
   }, [filters, activeTab])
 
   async function loadUserData() {

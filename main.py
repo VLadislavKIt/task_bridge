@@ -6,6 +6,7 @@ from aiogram.enums import ParseMode
 
 from config import BOT_TOKEN, USE_WEBHOOK, WEBHOOK_PATH, WEBHOOK_URL, HOST, PORT
 from bot.handlers import router, init_default_categories
+from bot.email_registration import router as email_router
 from bot.reminders import start_reminder_scheduler, stop_reminder_scheduler
 from db.database import init_db, get_db_session
 from webapp.app import app as webapp_app
@@ -37,8 +38,9 @@ async def start_bot_polling():
     bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
 
-
+    # Регистрируем роутеры
     dp.include_router(router)
+    dp.include_router(email_router)
 
     logger.info("Bot started in polling mode")
 
@@ -71,10 +73,11 @@ async def start_bot_webhook():
     
     bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
-    
-    \
+
+    # Регистрируем роутеры
     dp.include_router(router)
-    
+    dp.include_router(email_router)
+
     try:
        
         await bot.set_webhook(WEBHOOK_URL + WEBHOOK_PATH)

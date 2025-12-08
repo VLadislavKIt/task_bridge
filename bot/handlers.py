@@ -404,6 +404,12 @@ async def cmd_start(message: Message):
                     text="📱 Открыть мою панель задач",
                     web_app=WebAppInfo(url=webapp_url)
                 )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="📧 Зарегистрировать Email",
+                    callback_data="register_email"
+                )
             ]
         ])
 

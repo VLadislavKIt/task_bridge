@@ -13,6 +13,7 @@ from db.database import get_db_session
 from db.models import EmailAccount, EmailMessage, Task, PendingTask, User
 from bot.ai_extractor import analyze_message_with_ai
 from bot.email_handler import fetch_new_emails
+from bot.attachment_processor import extract_attachments_from_email, format_attachments_text
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +56,7 @@ def extract_task_from_email(email_data: Dict[str, Any]) -> Optional[Dict[str, An
     Извлекает данные задачи из email используя AI
 
     Args:
-        email_data: Данные email (subject, body_text, body_html)
+        email_data: Данные email (subject, body_text, body_html, raw_message)
 
     Returns:
         Словарь с данными задачи или None
@@ -69,8 +70,23 @@ def extract_task_from_email(email_data: Dict[str, Any]) -> Optional[Dict[str, An
     if not body_text and body_html:
         body_text = clean_html_to_text(body_html)
 
-    # Комбинируем тему и тело
-    full_text = f"{subject}\n\n{body_text}" if body_text else subject
+    # Обрабатываем вложения если есть
+    attachments = []
+    attachments_text = ""
+
+    if email_data.get('has_attachments') and email_data.get('raw_message'):
+        try:
+            raw_message = email_data['raw_message']
+            attachments = extract_attachments_from_email(raw_message)
+
+            if attachments:
+                attachments_text = format_attachments_text(attachments)
+                logger.info(f"Extracted {len(attachments)} attachments with text")
+        except Exception as e:
+            logger.error(f"Error processing attachments: {e}")
+
+    # Комбинируем тему, тело и вложения
+    full_text = f"{subject}\n\n{body_text}{attachments_text}" if body_text else f"{subject}{attachments_text}"
 
     if not full_text.strip():
         logger.warning("Empty email content, skipping")
@@ -88,6 +104,7 @@ def extract_task_from_email(email_data: Dict[str, Any]) -> Optional[Dict[str, An
             return None
 
         task_data = ai_result.get("task", {})
+        task_data['attachments'] = attachments  # Сохраняем информацию о вложениях
         logger.info(f"Task extracted from email: {task_data.get('title', 'No title')}")
 
         return task_data

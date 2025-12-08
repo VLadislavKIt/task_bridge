@@ -311,6 +311,7 @@ def fetch_new_emails(email_account: EmailAccount) -> List[Dict[str, Any]]:
                     'body_text': text_body,
                     'body_html': html_body,
                     'has_attachments': has_attachments,
+                    'raw_message': msg,  # Полное сообщение для обработки вложений
                 })
 
             except Exception as e:

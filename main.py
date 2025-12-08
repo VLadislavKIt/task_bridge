@@ -3,6 +3,7 @@ import logging
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.fsm.storage.memory import MemoryStorage
 
 from config import BOT_TOKEN, USE_WEBHOOK, WEBHOOK_PATH, WEBHOOK_URL, HOST, PORT
 from bot.handlers import router, init_default_categories
@@ -36,11 +37,12 @@ async def start_bot_polling():
 
 
     bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-    dp = Dispatcher()
+    storage = MemoryStorage()
+    dp = Dispatcher(storage=storage)
 
-    # Регистрируем роутеры
-    dp.include_router(router)
+    # Регистрируем роутеры (email_router ПЕРВЫМ для приоритета FSM)
     dp.include_router(email_router)
+    dp.include_router(router)
 
     logger.info("Bot started in polling mode")
 
@@ -72,11 +74,12 @@ async def start_bot_webhook():
     
     
     bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
-    dp = Dispatcher()
+    storage = MemoryStorage()
+    dp = Dispatcher(storage=storage)
 
-    # Регистрируем роутеры
-    dp.include_router(router)
+    # Регистрируем роутеры (email_router ПЕРВЫМ для приоритета FSM)
     dp.include_router(email_router)
+    dp.include_router(router)
 
     try:
        

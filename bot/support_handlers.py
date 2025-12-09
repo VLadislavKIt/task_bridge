@@ -13,7 +13,7 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import selectinload
 from datetime import datetime
 
-from db.database import get_session
+from db.database import AsyncSessionLocal
 from db.models import User, SupportSession, SupportMessage, SupportAttachment
 from bot.support_ai import get_support_response, format_conversation_history
 
@@ -46,7 +46,7 @@ def get_main_menu_keyboard():
 
 async def get_or_create_user(telegram_user) -> User:
     """Получает или создает пользователя"""
-    async with get_session() as session:
+    async with AsyncSessionLocal() as session:
         result = await session.execute(
             select(User).where(User.telegram_id == telegram_user.id)
         )
@@ -69,7 +69,7 @@ async def get_or_create_user(telegram_user) -> User:
 
 async def get_active_session(user_id: int) -> SupportSession | None:
     """Получает активную сессию поддержки пользователя"""
-    async with get_session() as session:
+    async with AsyncSessionLocal() as session:
         result = await session.execute(
             select(SupportSession)
             .options(selectinload(SupportSession.messages).selectinload(SupportMessage.attachments))
@@ -84,7 +84,7 @@ async def get_active_session(user_id: int) -> SupportSession | None:
 
 async def create_support_session(user_id: int) -> SupportSession:
     """Создает новую сессию поддержки"""
-    async with get_session() as session:
+    async with AsyncSessionLocal() as session:
         support_session = SupportSession(
             user_id=user_id,
             status='active',
@@ -104,7 +104,7 @@ async def save_user_message(
     attachments_data: list = None
 ) -> SupportMessage:
     """Сохраняет сообщение пользователя в БД"""
-    async with get_session() as session:
+    async with AsyncSessionLocal() as session:
         # Сохраняем сообщение
         support_message = SupportMessage(
             session_id=session_id,
@@ -150,7 +150,7 @@ async def save_ai_message(
     category: str = None
 ) -> SupportMessage:
     """Сохраняет ответ AI в БД"""
-    async with get_session() as session:
+    async with AsyncSessionLocal() as session:
         support_message = SupportMessage(
             session_id=session_id,
             from_user=False,
@@ -183,7 +183,7 @@ async def save_ai_message(
 
 async def close_support_session(session_id: int, summary: str = None, resolution: str = None):
     """Закрывает сессию поддержки"""
-    async with get_session() as session:
+    async with AsyncSessionLocal() as session:
         await session.execute(
             update(SupportSession)
             .where(SupportSession.id == session_id)

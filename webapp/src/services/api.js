@@ -3,6 +3,12 @@ import axios from 'axios'
 // Базовый URL API (будет работать через proxy в dev mode)
 const API_BASE_URL = '/api'
 
+// Вспомогательная функция для получения полного URL
+export const getApiUrl = (endpoint) => {
+  // В development используем прокси Vite, в production - относительные пути
+  return `${API_BASE_URL}${endpoint}`
+}
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {

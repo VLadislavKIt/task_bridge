@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getTasks, getStats, getCategories } from '../services/api'
+import { getTasks, getStats, getCategories, getApiUrl } from '../services/api'
 import { TaskList } from './TaskList'
 import { TaskDetail } from './TaskDetail'
 import { StatsWidget } from './StatsWidget'
@@ -35,7 +35,7 @@ export function TasksApp({ userId }) {
 
   async function loadUserData() {
     try {
-      const response = await fetch(`http://localhost:8000/api/users`)
+      const response = await fetch(getApiUrl('/users'))
       if (response.ok) {
         const users = await response.json()
         const user = users.find(u => u.id === userId)

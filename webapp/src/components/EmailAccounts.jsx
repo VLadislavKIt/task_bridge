@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Mail, Plus, Trash2, Check, X, AlertCircle } from 'lucide-react'
+import { getApiUrl } from '../services/api'
 import '../styles/EmailAccounts.css'
 
 export default function EmailAccounts({ currentUser }) {
@@ -62,7 +63,7 @@ export default function EmailAccounts({ currentUser }) {
 
   const loadAccounts = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/api/email-accounts?user_id=${currentUser.id}`)
+      const response = await fetch(getApiUrl(`/email-accounts?user_id=${currentUser.id}`))
       if (response.ok) {
         const data = await response.json()
         setAccounts(data)
@@ -77,7 +78,7 @@ export default function EmailAccounts({ currentUser }) {
   const testConnection = async () => {
     setTesting(true)
     try {
-      const response = await fetch('http://localhost:8000/api/email-accounts/test', {
+      const response = await fetch(getApiUrl('/email-accounts/test'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -106,7 +107,7 @@ export default function EmailAccounts({ currentUser }) {
 
   const createAccount = async () => {
     try {
-      const response = await fetch(`http://localhost:8000/api/email-accounts?user_id=${currentUser.id}`, {
+      const response = await fetch(getApiUrl(`/email-accounts?user_id=${currentUser.id}`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newAccount)
@@ -128,7 +129,7 @@ export default function EmailAccounts({ currentUser }) {
 
   const toggleActive = async (accountId, currentStatus) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/email-accounts/${accountId}`, {
+      const response = await fetch(getApiUrl(`/email-accounts/${accountId}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: !currentStatus })
@@ -144,7 +145,7 @@ export default function EmailAccounts({ currentUser }) {
 
   const toggleAutoConfirm = async (accountId, currentStatus) => {
     try {
-      const response = await fetch(`http://localhost:8000/api/email-accounts/${accountId}`, {
+      const response = await fetch(getApiUrl(`/email-accounts/${accountId}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ auto_confirm: !currentStatus })
@@ -162,7 +163,7 @@ export default function EmailAccounts({ currentUser }) {
     if (!confirm(`Удалить аккаунт ${email}?`)) return
 
     try {
-      const response = await fetch(`http://localhost:8000/api/email-accounts/${accountId}`, {
+      const response = await fetch(getApiUrl(`/email-accounts/${accountId}`), {
         method: 'DELETE'
       })
 

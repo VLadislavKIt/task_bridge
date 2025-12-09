@@ -271,3 +271,88 @@ class EmailMessage(Base):
 
     def __repr__(self):
         return f"<EmailMessage(id={self.id}, from={self.from_address}, subject={self.subject})>"
+
+
+class SupportSession(Base):
+    """Модель сессии чата поддержки"""
+    __tablename__ = "support_sessions"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete='CASCADE'), nullable=False)
+
+    # Статус сессии
+    status = Column(String(50), default='active')  # active, closed, resolved
+    category = Column(String(100), nullable=True)  # bug, feature, question, feedback
+
+    # Метаданные
+    started_at = Column(DateTime, default=datetime.utcnow, index=True)
+    closed_at = Column(DateTime, nullable=True)
+    last_message_at = Column(DateTime, default=datetime.utcnow)
+
+    # AI summary (создается при закрытии)
+    summary = Column(Text, nullable=True)
+    resolution = Column(Text, nullable=True)
+
+    # Связи
+    user = relationship("User", backref="support_sessions")
+    messages = relationship("SupportMessage", back_populates="session", cascade="all, delete-orphan", order_by="SupportMessage.created_at")
+
+    def __repr__(self):
+        return f"<SupportSession(id={self.id}, user_id={self.user_id}, status={self.status})>"
+
+
+class SupportMessage(Base):
+    """Модель сообщения в чате поддержки"""
+    __tablename__ = "support_messages"
+
+    id = Column(Integer, primary_key=True)
+    session_id = Column(Integer, ForeignKey("support_sessions.id", ondelete='CASCADE'), nullable=False, index=True)
+
+    # Отправитель
+    from_user = Column(Boolean, default=True)  # True = от пользователя, False = от AI
+    message_text = Column(Text, nullable=False)
+
+    # Telegram метаданные
+    telegram_message_id = Column(BigInteger, nullable=True)
+
+    # AI метаданные (если сообщение от AI)
+    ai_model = Column(String(100), nullable=True)
+    ai_tokens = Column(Integer, nullable=True)
+
+    # Метаданные
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    # Связи
+    session = relationship("SupportSession", back_populates="messages")
+    attachments = relationship("SupportAttachment", back_populates="message", cascade="all, delete-orphan")
+
+    def __repr__(self):
+        sender = "User" if self.from_user else "AI"
+        return f"<SupportMessage(id={self.id}, session_id={self.session_id}, from={sender})>"
+
+
+class SupportAttachment(Base):
+    """Модель вложения к сообщению поддержки"""
+    __tablename__ = "support_attachments"
+
+    id = Column(Integer, primary_key=True)
+    message_id = Column(Integer, ForeignKey("support_messages.id", ondelete='CASCADE'), nullable=False, index=True)
+
+    # Telegram file info
+    telegram_file_id = Column(String(255), nullable=False)
+    file_type = Column(String(50), nullable=False)  # photo, document, video, audio, voice
+    file_name = Column(String(500), nullable=True)
+    file_size = Column(Integer, nullable=True)  # в байтах
+    mime_type = Column(String(100), nullable=True)
+
+    # Извлеченный текст (если применимо)
+    extracted_text = Column(Text, nullable=True)
+
+    # Метаданные
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Связи
+    message = relationship("SupportMessage", back_populates="attachments")
+
+    def __repr__(self):
+        return f"<SupportAttachment(id={self.id}, file_type={self.file_type}, file_name={self.file_name})>"

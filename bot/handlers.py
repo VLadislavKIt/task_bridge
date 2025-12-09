@@ -409,6 +409,10 @@ async def cmd_start(message: Message):
                 InlineKeyboardButton(
                     text="📧 Зарегистрировать Email",
                     callback_data="register_email"
+                ),
+                InlineKeyboardButton(
+                    text="💬 Чат поддержки",
+                    callback_data="support_start"
                 )
             ]
         ])

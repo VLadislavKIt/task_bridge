@@ -9,6 +9,7 @@ from aiogram.types import BotCommand, BotCommandScopeDefault
 from config import BOT_TOKEN, USE_WEBHOOK, WEBHOOK_PATH, WEBHOOK_URL, HOST, PORT
 from bot.handlers import router, init_default_categories
 from bot.email_registration import router as email_router
+from bot.support_handlers import router as support_router
 from bot.reminders import start_reminder_scheduler, stop_reminder_scheduler
 from db.database import init_db, get_db_session
 from webapp.app import app as webapp_app
@@ -27,6 +28,7 @@ async def set_bot_commands(bot: Bot):
     commands = [
         BotCommand(command="start", description="🚀 Начать работу с ботом"),
         BotCommand(command="panel", description="📱 Открыть панель задач"),
+        BotCommand(command="support", description="💬 Чат поддержки"),
         BotCommand(command="help", description="❓ Справка и инструкции")
     ]
     await bot.set_my_commands(commands, BotCommandScopeDefault())
@@ -52,8 +54,9 @@ async def start_bot_polling():
     storage = MemoryStorage()
     dp = Dispatcher(storage=storage)
 
-    # Регистрируем роутеры (email_router ПЕРВЫМ для приоритета FSM)
+    # Регистрируем роутеры (email_router и support_router ПЕРВЫМИ для приоритета FSM)
     dp.include_router(email_router)
+    dp.include_router(support_router)
     dp.include_router(router)
 
     # Устанавливаем меню команд
@@ -92,8 +95,9 @@ async def start_bot_webhook():
     storage = MemoryStorage()
     dp = Dispatcher(storage=storage)
 
-    # Регистрируем роутеры (email_router ПЕРВЫМ для приоритета FSM)
+    # Регистрируем роутеры (email_router и support_router ПЕРВЫМИ для приоритета FSM)
     dp.include_router(email_router)
+    dp.include_router(support_router)
     dp.include_router(router)
 
     # Устанавливаем меню команд

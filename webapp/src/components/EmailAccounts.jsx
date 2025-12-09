@@ -190,7 +190,7 @@ export default function EmailAccounts({ currentUser }) {
   }
 
   const formatTimeAgo = (dateString) => {
-    if (!dateString) return 'Ожидание первой проверки'
+    if (!dateString) return 'Ожидание проверки'
 
     const date = new Date(dateString)
     const now = new Date()

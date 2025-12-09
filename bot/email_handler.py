@@ -247,6 +247,29 @@ def fetch_new_emails(email_account: EmailAccount) -> List[Dict[str, Any]]:
         # Получаем все UID в папке
         messages = client.search(['ALL'])
 
+        # ПЕРВАЯ ПРОВЕРКА: Инициализация last_uid без обработки старых писем
+        if email_account.last_uid == 0 and email_account.last_checked is None:
+            if messages:
+                max_uid = max(messages)
+                logger.info(f"🆕 First check for {email_account.email_address}: setting last_uid to {max_uid} (skipping {len(messages)} old emails)")
+
+                # Обновляем last_uid в БД чтобы начать проверку с этого момента
+                from db.database import get_db_session
+                db = get_db_session()
+                try:
+                    email_account.last_uid = max_uid
+                    email_account.last_checked = datetime.utcnow()
+                    db.merge(email_account)
+                    db.commit()
+                except Exception as e:
+                    logger.error(f"Failed to update last_uid: {e}")
+                    db.rollback()
+                finally:
+                    db.close()
+
+            client.logout()
+            return []  # Не обрабатываем старые письма
+
         # Фильтруем только новые (UID > last_uid)
         new_messages = [uid for uid in messages if uid > email_account.last_uid]
 

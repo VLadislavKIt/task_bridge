@@ -172,7 +172,8 @@ body {
    TABS
    ============================================ */
 
-.tabs-container {
+.tabs-container,
+.tabs {
   display: flex;
   gap: 8px;
   margin-bottom: var(--spacing-lg);

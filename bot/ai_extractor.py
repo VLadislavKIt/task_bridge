@@ -15,10 +15,112 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 
 
 def get_current_datetime() -> str:
-    
+
     tz = pytz.timezone(TIMEZONE)
     now = datetime.now(tz)
     return now.strftime("%Y-%m-%d %H:%M:%S %Z")
+
+
+EMAIL_SYSTEM_PROMPT = """Ты — AI-ассистент для извлечения задач из деловых email писем.
+
+Твоя задача — анализировать текст письма и определять:
+1. Содержит ли письмо задачу, поручение, просьбу о выполнении работы?
+2. Если да, извлечь детали задачи.
+
+ВАЖНО:
+- Текущая дата и время: {current_datetime}
+- Email письма часто содержат СКРЫТЫЕ задачи в форме вежливых просьб:
+  * "Не могли бы вы..." → ЗАДАЧА
+  * "Пожалуйста, подготовьте..." → ЗАДАЧА
+  * "Прошу..." → ЗАДАЧА
+  * "Необходимо сделать..." → ЗАДАЧА
+  * "Напоминаю о..." → ЗАДАЧА
+  * "Срочно требуется..." → ЗАДАЧА
+  * "Ожидаю от вас..." → ЗАДАЧА
+- Игнорируй РЕКЛАМНЫЕ письма (промо, скидки, чеки, подписки)
+- Игнорируй уведомления от сервисов (если только они не содержат конкретную просьбу)
+- Если письмо содержит НЕСКОЛЬКО задач - выбери ГЛАВНУЮ
+
+ПРАВИЛА ПАРСИНГА ВРЕМЕНИ (используй текущую дату и время из {current_datetime}):
+
+Части дня:
+- "до утра" / "к утру" / "утром" → следующий день 09:00
+- "до обеда" / "к обеду" / "в обед" → сегодня 13:00 (если до 13:00) или завтра 13:00
+- "после обеда" / "днем" → сегодня 15:00
+- "до вечера" / "к вечеру" / "вечером" → сегодня 18:00 (если до 18:00) или завтра 18:00
+- "ночью" / "к ночи" → сегодня 22:00
+- "до конца дня" / "к концу дня" → сегодня 23:59
+- "сегодня" → сегодня 23:59
+
+Относительные даты:
+- "завтра" → завтра 23:59
+- "послезавтра" → +2 дня, 23:59
+- "через N дней/часов" → текущая дата + N дней/часов
+- "через неделю" → +7 дней, 23:59
+- "через месяц" → +30 дней, 23:59
+
+Дни недели (ближайший):
+- "в понедельник" / "к понедельнику" → ближайший понедельник 23:59
+- "во вторник" / "к вторнику" → ближайший вторник 23:59
+- "в среду" / "к среде" → ближайшая среда 23:59
+- "в четверг" / "к четвергу" → ближайший четверг 23:59
+- "в пятницу" / "к пятнице" → ближайшая пятница 23:59
+- "в субботу" / "к субботе" → ближайшая суббота 23:59
+- "в воскресенье" / "к воскресенью" → ближайшее воскресенье 23:59
+
+Приоритет:
+- "срочно", "urgent", "ASAP", "как можно скорее" = urgent
+- "важно", "приоритетно" = high
+- "когда будет время", "не срочно" = low
+- остальное = normal
+
+Ответ СТРОГО в формате JSON:
+{{
+  "has_task": true/false,
+  "task": {{
+    "title": "краткое описание задачи (макс 100 символов)",
+    "description": "полное описание задачи из письма",
+    "assignee_usernames": [] (для email обычно пусто, получатель и так знает что ему),
+    "due_date": "YYYY-MM-DD HH:MM:SS или null",
+    "priority": "low/normal/high/urgent"
+  }}
+}}
+
+Примеры:
+
+Email: "Добрый день! Не могли бы вы подготовить отчет по продажам за квартал? Нужно к пятнице. Спасибо!"
+Ответ:
+{{
+  "has_task": true,
+  "task": {{
+    "title": "Подготовить отчет по продажам за квартал",
+    "description": "Подготовить отчет по продажам за квартал к пятнице",
+    "assignee_usernames": [],
+    "due_date": "2024-12-13 23:59:00",
+    "priority": "normal"
+  }}
+}}
+
+Email: "Скидка 50% на все товары! Успей купить до конца недели!"
+Ответ:
+{{
+  "has_task": false,
+  "task": null
+}}
+
+Email: "Напоминаю о необходимости срочно отправить документы для проверки"
+Ответ:
+{{
+  "has_task": true,
+  "task": {{
+    "title": "Отправить документы для проверки",
+    "description": "Срочно отправить документы для проверки",
+    "assignee_usernames": [],
+    "due_date": null,
+    "priority": "urgent"
+  }}
+}}
+"""
 
 
 SYSTEM_PROMPT = """Ты — AI-ассистент для извлечения задач из сообщений в Telegram чатах.
@@ -227,6 +329,69 @@ async def analyze_message_with_ai(text: str) -> Optional[Dict[str, Any]]:
 
     except Exception as e:
         logger.error(f"Error in AI analysis: {e}", exc_info=True)
+        return None
+
+
+async def analyze_email_with_ai(text: str) -> Optional[Dict[str, Any]]:
+    """
+    Анализирует email письмо с помощью AI и извлекает задачу.
+    Использует специальный промпт для email, который более чувствителен к деловым письмам.
+    """
+    if not text or len(text.strip()) == 0:
+        return None
+
+    try:
+        # Получаем текущую дату и время
+        current_dt = get_current_datetime()
+
+        # Формируем промпт с текущей датой (используем EMAIL_SYSTEM_PROMPT)
+        system_prompt = EMAIL_SYSTEM_PROMPT.format(current_datetime=current_dt)
+
+        # Вызываем OpenAI API
+        logger.info(f"Calling OpenAI API to analyze email: {text[:50]}...")
+
+        response = client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": text}
+            ],
+            temperature=OPENAI_TEMPERATURE,
+            max_tokens=OPENAI_MAX_TOKENS,
+            response_format={"type": "json_object"}
+        )
+
+        # Парсим ответ
+        result_text = response.choices[0].message.content
+        logger.info(f"OpenAI response for email: {result_text}")
+
+        # Преобразуем в dict
+        result = json.loads(result_text)
+
+        # Валидация формата
+        if not isinstance(result, dict) or "has_task" not in result:
+            logger.error(f"Invalid AI response format: {result}")
+            return None
+
+        # Если задачи нет - возвращаем результат
+        if not result.get("has_task", False):
+            return result
+
+        # Парсим due_date если есть
+        task = result.get("task")
+        if task and task.get("due_date"):
+            try:
+                # Парсим строку даты в объект datetime
+                due_date_str = task["due_date"]
+                task["due_date_parsed"] = date_parser.parse(due_date_str)
+            except Exception as date_error:
+                logger.warning(f"Failed to parse due_date: {task.get('due_date')}, error: {date_error}")
+                task["due_date_parsed"] = None
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Error in AI email analysis: {e}", exc_info=True)
         return None
 
 

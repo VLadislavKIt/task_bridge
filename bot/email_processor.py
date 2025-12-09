@@ -11,7 +11,7 @@ from bs4 import BeautifulSoup
 
 from db.database import get_db_session
 from db.models import EmailAccount, EmailMessage, Task, PendingTask, User
-from bot.ai_extractor import analyze_message_with_ai
+from bot.ai_extractor import analyze_email_with_ai
 from bot.email_handler import fetch_new_emails
 from bot.attachment_processor import extract_attachments_from_email, format_attachments_text
 
@@ -94,10 +94,10 @@ def extract_task_from_email(email_data: Dict[str, Any]) -> Optional[Dict[str, An
 
     logger.info(f"Analyzing email: {subject[:50]}...")
 
-    # Используем AI для извлечения задачи (как в Telegram)
+    # Используем AI для извлечения задачи (специальный промпт для email)
     try:
         import asyncio
-        ai_result = asyncio.run(analyze_message_with_ai(full_text))
+        ai_result = asyncio.run(analyze_email_with_ai(full_text))
 
         if not ai_result or not ai_result.get("has_task"):
             logger.info("No task found in email")

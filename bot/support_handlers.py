@@ -4,6 +4,8 @@ Allows users to ask questions, report bugs, and provide feedback
 """
 
 import logging
+import base64
+import io
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command, StateFilter
@@ -12,6 +14,7 @@ from aiogram.fsm.state import State, StatesGroup
 from sqlalchemy import select, update
 from sqlalchemy.orm import selectinload
 from datetime import datetime
+from openai import AsyncOpenAI
 
 from db.database import AsyncSessionLocal
 from db.models import User, SupportSession, SupportMessage, SupportAttachment
@@ -198,8 +201,70 @@ async def close_support_session(session_id: int, summary: str = None, resolution
         await session.commit()
 
 
-async def forward_to_developer(message: Message, user: User, message_type: str):
-    """Пересылает медиафайл разработчику"""
+async def analyze_image_with_vision(message: Message, user: User) -> str:
+    """
+    Анализирует изображение с помощью GPT-4 Vision API
+    Возвращает распознанный текст и описание содержимого
+    """
+    try:
+        # Инициализируем OpenAI клиент
+        client = AsyncOpenAI(api_key=config.OPENAI_API_KEY)
+
+        # Получаем фото (берем самое большое)
+        photo = message.photo[-1]
+
+        # Скачиваем файл
+        file = await message.bot.get_file(photo.file_id)
+        file_bytes = await message.bot.download_file(file.file_path)
+
+        # Конвертируем в base64
+        image_base64 = base64.b64encode(file_bytes.read()).decode('utf-8')
+
+        logger.info(f"Analyzing image from user {user.telegram_id} with GPT-4 Vision")
+
+        # Отправляем в GPT-4 Vision
+        response = await client.chat.completions.create(
+            model="gpt-4o-mini",  # Поддерживает vision и дешевле
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": """Проанализируй это изображение и опиши:
+1. Если на скриншоте есть ТЕКСТ - распознай его полностью
+2. Опиши что изображено (интерфейс приложения, ошибка, баг, и т.д.)
+3. Укажи технические детали если видны (версии, коды ошибок)
+
+Ответь КРАТКО и СТРУКТУРИРОВАННО."""
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{image_base64}"
+                            }
+                        }
+                    ]
+                }
+            ],
+            max_tokens=500,
+            temperature=0.3
+        )
+
+        analysis = response.choices[0].message.content
+        tokens_used = response.usage.total_tokens
+
+        logger.info(f"Vision API analysis completed. Tokens used: {tokens_used}")
+
+        return analysis
+
+    except Exception as e:
+        logger.error(f"Failed to analyze image with Vision API: {e}", exc_info=True)
+        return None
+
+
+async def forward_to_developer(message: Message, user: User, message_type: str, vision_analysis: str = None):
+    """Пересылает медиафайл разработчику с анализом Vision API"""
     if not config.DEVELOPER_TELEGRAM_ID:
         logger.warning("DEVELOPER_TELEGRAM_ID not set - cannot forward screenshot")
         return False
@@ -210,8 +275,13 @@ async def forward_to_developer(message: Message, user: User, message_type: str):
         message_text = message.text or message.caption or ""
 
         forward_text = f"{user_info}\n📎 Тип: {message_type}"
+
         if message_text:
-            forward_text += f"\n\n💬 Сообщение:\n{message_text}"
+            forward_text += f"\n\n💬 Сообщение пользователя:\n{message_text}"
+
+        # Добавляем анализ Vision API если есть
+        if vision_analysis:
+            forward_text += f"\n\n🤖 Анализ GPT-4 Vision:\n{vision_analysis}"
 
         # Отправляем текстовое сообщение с информацией
         await message.bot.send_message(
@@ -379,14 +449,32 @@ async def handle_support_message(message: Message, state: FSMContext):
         })
         attachments_description = "Фото"
 
-        # Пересылаем скриншот разработчику
-        forwarded_to_dev = await forward_to_developer(message, user, "Скриншот/Фото")
+        # Анализируем изображение с помощью GPT-4 Vision
+        logger.info("Analyzing screenshot with GPT-4 Vision...")
+        vision_analysis = await analyze_image_with_vision(message, user)
+
+        if vision_analysis:
+            logger.info(f"Vision analysis result: {vision_analysis[:100]}...")
+            # Обновляем описание для AI с результатами Vision
+            attachments_description = f"Фото (Распознано: {vision_analysis})"
+
+        # Пересылаем скриншот разработчику с анализом Vision
+        forwarded_to_dev = await forward_to_developer(
+            message,
+            user,
+            "Скриншот/Фото",
+            vision_analysis=vision_analysis
+        )
 
         # Уведомляем пользователя о пересылке
         if forwarded_to_dev:
+            notification_text = "📸 Скриншот получен и отправлен разработчику!"
+            if vision_analysis:
+                notification_text += "\n🤖 Изображение автоматически проанализировано."
+            notification_text += "\n\nСейчас я также попробую ответить на ваш вопрос..."
+
             await message.answer(
-                "📸 Скриншот получен и отправлен разработчику!\n\n"
-                "Сейчас я также попробую ответить на ваш вопрос...",
+                notification_text,
                 reply_markup=get_support_keyboard()
             )
 

@@ -21,6 +21,7 @@ export function TaskDetail({ task: initialTask, onBack, isManager }) {
   const [newComment, setNewComment] = useState('')
   const [loading, setLoading] = useState(false)
   const [showAssigneeModal, setShowAssigneeModal] = useState(false)
+  const [assigneeSearch, setAssigneeSearch] = useState('')
 
   useEffect(() => {
     loadTaskData()
@@ -83,6 +84,7 @@ export function TaskDetail({ task: initialTask, onBack, isManager }) {
       await addTaskAssignee(task.id, userId)
       await loadTaskData() // Перезагружаем данные задачи
       setShowAssigneeModal(false)
+      setAssigneeSearch('') // Сбрасываем поиск
       showTelegramAlert('Исполнитель добавлен')
     } catch (err) {
       console.error('Error adding assignee:', err)
@@ -153,6 +155,17 @@ export function TaskDetail({ task: initialTask, onBack, isManager }) {
   const availableUsers = users.filter(
     user => !task.assignees.some(assignee => assignee.id === user.id)
   )
+
+  // Фильтруем по поисковому запросу
+  const filteredUsers = availableUsers.filter(user => {
+    if (!assigneeSearch.trim()) return true
+
+    const searchLower = assigneeSearch.toLowerCase()
+    const firstName = (user.first_name || '').toLowerCase()
+    const username = (user.username || '').toLowerCase()
+
+    return firstName.includes(searchLower) || username.includes(searchLower)
+  })
 
   return (
     <div className="task-detail">
@@ -259,12 +272,26 @@ export function TaskDetail({ task: initialTask, onBack, isManager }) {
 
         {/* Модальное окно для добавления исполнителя */}
         {showAssigneeModal && (
-          <div className="modal-overlay" onClick={() => setShowAssigneeModal(false)}>
+          <div className="modal-overlay" onClick={() => {
+            setShowAssigneeModal(false)
+            setAssigneeSearch('')
+          }}>
             <div className="modal-content" onClick={(e) => e.stopPropagation()}>
               <h3>Добавить исполнителя</h3>
+
+              {/* Поисковая строка */}
+              <input
+                type="text"
+                className="assignee-search-input"
+                placeholder="Поиск по имени или username..."
+                value={assigneeSearch}
+                onChange={(e) => setAssigneeSearch(e.target.value)}
+                autoFocus
+              />
+
               <div className="user-list">
-                {availableUsers.length > 0 ? (
-                  availableUsers.map(user => (
+                {filteredUsers.length > 0 ? (
+                  filteredUsers.map(user => (
                     <div
                       key={user.id}
                       className="user-item"
@@ -273,13 +300,18 @@ export function TaskDetail({ task: initialTask, onBack, isManager }) {
                       <span>{user.first_name || user.username}</span>
                     </div>
                   ))
-                ) : (
+                ) : availableUsers.length === 0 ? (
                   <p>Все пользователи уже назначены</p>
+                ) : (
+                  <p>Ничего не найдено</p>
                 )}
               </div>
               <button
                 className="modal-close-button"
-                onClick={() => setShowAssigneeModal(false)}
+                onClick={() => {
+                  setShowAssigneeModal(false)
+                  setAssigneeSearch('')
+                }}
               >
                 Закрыть
               </button>

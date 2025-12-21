@@ -16,6 +16,7 @@ from datetime import datetime
 from db.database import AsyncSessionLocal
 from db.models import User, SupportSession, SupportMessage, SupportAttachment
 from bot.support_ai import get_support_response, format_conversation_history
+import config
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -197,6 +198,38 @@ async def close_support_session(session_id: int, summary: str = None, resolution
         await session.commit()
 
 
+async def forward_to_developer(message: Message, user: User, message_type: str):
+    """Пересылает медиафайл разработчику"""
+    if not config.DEVELOPER_TELEGRAM_ID:
+        logger.warning("DEVELOPER_TELEGRAM_ID not set - cannot forward screenshot")
+        return False
+
+    try:
+        # Формируем текст сообщения для разработчика
+        user_info = f"👤 От пользователя: {user.first_name or user.username} (ID: {user.telegram_id})"
+        message_text = message.text or message.caption or ""
+
+        forward_text = f"{user_info}\n📎 Тип: {message_type}"
+        if message_text:
+            forward_text += f"\n\n💬 Сообщение:\n{message_text}"
+
+        # Отправляем текстовое сообщение с информацией
+        await message.bot.send_message(
+            chat_id=config.DEVELOPER_TELEGRAM_ID,
+            text=forward_text
+        )
+
+        # Пересылаем сам медиафайл
+        await message.forward(config.DEVELOPER_TELEGRAM_ID)
+
+        logger.info(f"Forwarded {message_type} from user {user.telegram_id} to developer")
+        return True
+
+    except Exception as e:
+        logger.error(f"Failed to forward to developer: {e}", exc_info=True)
+        return False
+
+
 @router.message(Command("support"))
 async def cmd_support(message: Message, state: FSMContext):
     """Команда /support - начать чат с поддержкой"""
@@ -334,6 +367,7 @@ async def handle_support_message(message: Message, state: FSMContext):
     # Собираем информацию о вложениях
     attachments_data = []
     attachments_description = None
+    forwarded_to_dev = False
 
     if message.photo:
         # Берем самое большое фото
@@ -344,6 +378,17 @@ async def handle_support_message(message: Message, state: FSMContext):
             'file_size': photo.file_size
         })
         attachments_description = "Фото"
+
+        # Пересылаем скриншот разработчику
+        forwarded_to_dev = await forward_to_developer(message, user, "Скриншот/Фото")
+
+        # Уведомляем пользователя о пересылке
+        if forwarded_to_dev:
+            await message.answer(
+                "📸 Скриншот получен и отправлен разработчику!\n\n"
+                "Сейчас я также попробую ответить на ваш вопрос...",
+                reply_markup=get_support_keyboard()
+            )
 
     elif message.document:
         attachments_data.append({

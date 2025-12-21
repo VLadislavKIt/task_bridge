@@ -71,6 +71,11 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
 TIMEZONE = os.getenv("TIMEZONE", "Europe/Moscow")
 
+# Developer telegram ID for forwarding support screenshots and critical issues
+DEVELOPER_TELEGRAM_ID = os.getenv("DEVELOPER_TELEGRAM_ID")
+if DEVELOPER_TELEGRAM_ID:
+    DEVELOPER_TELEGRAM_ID = int(DEVELOPER_TELEGRAM_ID.strip())
+
 MAX_TASK_DESCRIPTION_LENGTH = 2000
 
 TASK_STATUSES = ["pending", "in_progress", "completed", "cancelled"]

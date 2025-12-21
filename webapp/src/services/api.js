@@ -63,8 +63,9 @@ export const getCategories = async () => {
 }
 
 // Пользователи
-export const getUsers = async () => {
-  const response = await api.get('/users')
+export const getUsers = async (currentUserId = null) => {
+  const params = currentUserId ? { current_user_id: currentUserId } : {}
+  const response = await api.get('/users', { params })
   return response.data
 }
 

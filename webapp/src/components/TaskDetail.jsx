@@ -29,11 +29,15 @@ export function TaskDetail({ task: initialTask, onBack, isManager }) {
   async function loadTaskData() {
     try {
       setLoading(true)
+
+      // SECURITY: Получаем текущий userId для фильтрации пользователей
+      const userId = new URLSearchParams(window.location.search).get('user_id')
+
       const [taskData, commentsData, filesData, usersData] = await Promise.all([
         getTask(task.id),
         getTaskComments(task.id),
         getTaskFiles(task.id),
-        isManager ? getUsers() : Promise.resolve([])
+        isManager ? getUsers(parseInt(userId)) : Promise.resolve([])
       ])
 
       setTask(taskData)

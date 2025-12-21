@@ -337,13 +337,49 @@ async def get_categories(db: Session = Depends(get_db)):
 
 
 @app.get("/api/users", response_model=List[dict])
-async def get_users(db: Session = Depends(get_db)):
-    """Получить список пользователей"""
-    users = db.query(User).filter(User.is_bot == False).all()
-    
+async def get_users(current_user_id: Optional[int] = None, db: Session = Depends(get_db)):
+    """
+    Получить список пользователей
+
+    SECURITY: Если указан current_user_id, возвращает только пользователей из общих чатов.
+    Это предотвращает утечку данных о пользователях из других чатов.
+    """
+
+    # SECURITY FIX: Фильтруем пользователей по общим чатам
+    if current_user_id:
+        # Шаг 1: Находим все chat_id где есть сообщения от текущего пользователя
+        current_user_chats = db.query(MessageModel.chat_id).filter(
+            MessageModel.user_id == current_user_id
+        ).distinct().subquery()
+
+        # Шаг 2: Находим всех пользователей, которые писали в этих чатах
+        users_in_common_chats = db.query(MessageModel.user_id).filter(
+            MessageModel.chat_id.in_(current_user_chats),
+            MessageModel.user_id.isnot(None)
+        ).distinct().subquery()
+
+        # Шаг 3: Получаем User объекты только для этих пользователей
+        users = db.query(User).filter(
+            User.id.in_(users_in_common_chats),
+            User.is_bot == False
+        ).all()
+
+        logger.info(f"Filtered users for user_id={current_user_id}: {len(users)} users from common chats")
+    else:
+        # Если не указан current_user_id - возвращаем всех (для обратной совместимости)
+        # НО это небезопасно! Рекомендуется всегда передавать current_user_id
+        logger.warning("GET /api/users called without current_user_id - returning all users (INSECURE)")
+        users = db.query(User).filter(User.is_bot == False).all()
+
     result = []
     for user in users:
-        task_count = db.query(func.count(Task.id)).filter(Task.assigned_to == user.id).scalar()
+        # Подсчитываем задачи через many-to-many связь
+        task_count = db.query(func.count(Task.id)).join(
+            task_assignees
+        ).filter(
+            task_assignees.c.user_id == user.id
+        ).scalar()
+
         result.append({
             "id": user.id,
             "telegram_id": user.telegram_id,
@@ -352,7 +388,7 @@ async def get_users(db: Session = Depends(get_db)):
             "last_name": user.last_name,
             "task_count": task_count
         })
-    
+
     return result
 
 

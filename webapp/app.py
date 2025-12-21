@@ -97,6 +97,16 @@ async def read_webapp_double_slash():
     return FileResponse(str(index_html_path))
 
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint для мониторинга и пробуждения (Render.com + cron-job.org)"""
+    return {
+        "status": "ok",
+        "timestamp": datetime.utcnow().isoformat(),
+        "service": "TaskBridge"
+    }
+
+
 @app.get("/api/tasks", response_model=List[dict])
 async def get_tasks(
     status: Optional[str] = None,

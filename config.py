@@ -59,12 +59,21 @@ TASK_KEYWORDS = [
 ]
 
 
-REMINDER_INTERVALS = [3, 1, 0]  
+# Напоминания для исполнителей (дни до дедлайна)
+# По умолчанию: за 3 дня, за 1 день, в день дедлайна
+ASSIGNEE_REMINDER_INTERVALS = [3, 1, 0]
+
+# Напоминания для постановщиков (дни после создания задачи)
+# По умолчанию: через 1 день, через 3 дня, через 7 дней
+CREATOR_REMINDER_INTERVALS = [1, 3, 7]
+
+# Legacy поддержка старого названия
+REMINDER_INTERVALS = ASSIGNEE_REMINDER_INTERVALS
 
 
-REMINDER_TIME_HOUR = 9  
+REMINDER_TIME_HOUR = 9
 
-
+# Интервал проверки напоминаний (в минутах)
 REMINDER_CHECK_INTERVAL = 60  
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")

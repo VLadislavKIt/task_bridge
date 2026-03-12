@@ -44,3 +44,9 @@ nohup.out
 bot.log
 webapp.log
 
+
+# Runtime data
+data/
+openclaw_data/
+taskbridge.db
+
